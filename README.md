@@ -22,8 +22,8 @@ replace them later without touching the app.
 
 ## Publishing
 
-Settings, then Pages, then set Source to `main` and the folder to `/ (root)`. The page is live a
-minute or so later.
+Settings, then Pages, then set Source to `master` and the folder to `/ (root)`. The page is live
+a minute or so later.
 
 To move it to a custom domain, add a `CNAME` file containing the bare hostname and point the
 domain's DNS at GitHub Pages.
