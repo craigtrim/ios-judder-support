@@ -34,7 +34,13 @@ domain's DNS at GitHub Pages.
 fetch. It renders in light and dark according to the reader's system setting. Open it in a
 browser to check a change, since there is nothing to compile.
 
-Anything asserted here about privacy has to stay true of the shipped app. The claims are that
-Judder has no network code, no analytics, no accounts, no crash reporting and no persistence.
-If any of that changes in the app, this page changes in the same release, and the App Privacy
-answers in App Store Connect change with it.
+Anything asserted here about privacy has to stay true of the shipped app. The claims are narrow
+on purpose: no network code, no analytics, no accounts, no tracking, and patterns that stay on
+the device.
+
+Note what is deliberately **not** claimed. The page does not say the app stores nothing, because
+on-device persistence is planned before the first release and that claim would go stale. Storing
+data locally is not collection under Apple's definition, so "Data Not Collected" survives it.
+What would break the page is anything that transmits: an analytics SDK, a crash reporter, a sync
+feature, or an account. If one of those ever lands, this page changes in the same release and so
+do the App Privacy answers in App Store Connect.
