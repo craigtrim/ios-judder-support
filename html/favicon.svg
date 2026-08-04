@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- The app mark. Bar heights and the rounded-square radius are the nav glyph's exactly; the bar
+       widths are cut thicker because the nav's 44-unit minor bars land on 0.69px at a 16px favicon
+       and smear into the amber. -->
+  <rect width="1024" height="1024" rx="230" fill="#FF9F0A"/>
+  <g fill="#0C0C0E">
+    <rect x="187" y="300" width="170" height="440" rx="18"/>
+    <rect x="412" y="454" width="105" height="286" rx="14"/>
+    <rect x="572" y="554" width="105" height="186" rx="14"/>
+    <rect x="732" y="622" width="105" height="118" rx="14"/>
+  </g>
+</svg>

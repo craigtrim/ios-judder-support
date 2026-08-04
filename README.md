@@ -9,6 +9,9 @@ no dependencies.
 | `html/support.html` | `/support.html` | Common questions, requirements, and the contact address. |
 | `html/privacy.html` | `/privacy.html` | The privacy policy. |
 | `html/app/index.html` | `/app/index.html` | The web prototype of the editor, loaded by the landing page in an iframe. Not linked directly. |
+| `html/favicon.svg` | `/favicon.svg` | The app mark. Same bar heights and corner radius as the nav glyph, with the bars cut thicker. |
+| `html/favicon.ico` | `/favicon.ico` | 16, 32 and 48 px fallback for browsers that will not take an SVG icon. |
+| `html/apple-touch-icon.png` | `/apple-touch-icon.png` | 180 px, full bleed. iOS applies its own corner mask, so this one is not pre-rounded. |
 
 The support and privacy pages exist because the App Store requires a reachable Support URL and a
 Privacy Policy URL. Two questions account for nearly all of Judder's support load, and both are
@@ -51,8 +54,14 @@ is not affected by any of this.
 
 ## Editing
 
-Every page is self-contained: the CSS is inline and there are no fonts, scripts or images to
-fetch. All three share one palette, taken from the app itself. Amber is haptic energy, blue is the
+Every page is self-contained: the CSS is inline and there are no fonts or scripts to fetch. The
+only files a page pulls are the three icons, and they are the reason the nav mark is duplicated as
+`favicon.svg` rather than referenced: a favicon cannot be an inline SVG. Its bars are cut thicker
+than the nav glyph's because the nav's 44-unit minor bars land on 0.69 px at a 16 px favicon and
+smear into the amber. Bar heights and the corner radius are the nav glyph's exactly, so the two
+read as one mark at every size above about 20 px.
+
+All three pages share one palette, taken from the app itself. Amber is haptic energy, blue is the
 audio bed, and everything else is an iOS dark system surface. A third accent colour is a
 regression. `html/index.html` also carries its own resolver in inline JavaScript, mirroring
 `HapticTimeline.resolve` so the numbers on the page match the app.
