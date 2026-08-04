@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!-- The app mark. Bar heights and the rounded-square radius are the nav glyph's exactly; the bar
        widths are cut thicker because the nav's 44-unit minor bars land on 0.69px at a 16px favicon
        and smear into the amber. -->
