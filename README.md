@@ -1,42 +1,71 @@
-# Judder support
+# judder-haptics.com
 
-The support and privacy page for [Judder](https://apps.apple.com/app/id6796445047), a haptic
-pattern editor for iPhone. One static page, served by GitHub Pages, with no build step and no
-dependencies.
+The public site for Judder, a haptic pattern editor for iPhone. Static files, no build step and
+no dependencies.
 
-It exists because the App Store requires a reachable Support URL and a Privacy Policy URL, and
-because two questions account for nearly all of Judder's support load. Both are answered on the
-page rather than by email: the Simulator has no Taptic Engine, and iOS silences every app's
-haptics when Settings, Accessibility, Touch, Vibration is off.
+| Path | Serves | What it is |
+| --- | --- | --- |
+| `html/index.html` | `/` | The landing page. Explains the app, cites its sources, and embeds a live copy of the web prototype. |
+| `html/support.html` | `/support.html` | Support and privacy, with the privacy section anchored at `#privacy`. |
+| `html/app/index.html` | `/app/index.html` | The web prototype of the editor, loaded by the landing page in an iframe. Not linked directly. |
+
+The support page exists because the App Store requires a reachable Support URL and a Privacy
+Policy URL, and because two questions account for nearly all of Judder's support load. Both are
+answered on the page rather than by email: the Simulator has no Taptic Engine, and iOS silences
+every app's haptics when Settings, Accessibility, Touch, Vibration is off.
 
 ## What goes in App Store Connect
 
 | Field | Value |
 | --- | --- |
-| Support URL | `https://craigtrim.github.io/ios-judder-support/` |
-| Privacy Policy URL | `https://craigtrim.github.io/ios-judder-support/#privacy` |
-| Marketing URL | leave blank |
+| Support URL | `https://judder-haptics.com/support.html` |
+| Privacy Policy URL | `https://judder-haptics.com/support.html#privacy` |
+| Marketing URL | `https://judder-haptics.com/` |
 
-Both URLs can be changed at any time without shipping a new build, so a custom domain can
-replace them later without touching the app.
+All three can be changed at any time without shipping a new build.
 
 ## Publishing
 
-Settings, then Pages, then set Source to `master` and the folder to `/ (root)`. The page is live
-a minute or so later.
+Every push to `master` deploys `html/` through
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml). The workflow uploads the directory
+as it sits in the repository, so what is committed is what is served.
 
-To move it to a custom domain, add a `CNAME` file containing the bare hostname and point the
-domain's DNS at GitHub Pages.
+It is an Actions deployment rather than the older deploy-from-a-branch setting because that
+setting can only publish the repository root or `/docs`, and the site lives in `html/`.
+
+`html/CNAME` holds the custom domain. It has to stay inside the published directory: with an
+Actions deployment GitHub reads the custom domain from the artifact, so losing the file drops the
+domain off the site.
+
+### DNS
+
+The domain is registered through Cloudflare and the zone is served by Cloudflare nameservers, so
+the records are added there. GitHub Pages needs four `A` records and four `AAAA` records on the
+apex, plus a `CNAME` on `www` pointing at `craigtrim.github.io`. Leave them unproxied (grey cloud)
+until GitHub has issued the certificate and Enforce HTTPS is available, since that check has to
+reach GitHub rather than Cloudflare's edge.
+
+Cloudflare Email Routing already publishes MX for the domain. Mail is independent of the site and
+is not affected by any of this.
 
 ## Editing
 
-`index.html` is self-contained: the CSS is inline and there are no fonts, scripts or images to
-fetch. It renders in light and dark according to the reader's system setting. Open it in a
-browser to check a change, since there is nothing to compile.
+Both pages are self-contained: the CSS is inline and there are no fonts, scripts or images to
+fetch. `html/index.html` renders dark and carries its own resolver in inline JavaScript, mirroring
+`HapticTimeline.resolve` so the numbers on the page match the app. `html/support.html` follows the
+reader's system setting for light or dark. Open either in a browser to check a change, since there
+is nothing to compile.
 
-Anything asserted here about privacy has to stay true of the shipped app. The claims are narrow
-on purpose: no network code, no analytics, no accounts, no tracking, and patterns that stay on
-the device.
+To preview the site the way it will actually be served, run a static server from `html/` instead
+of opening the files directly, because the landing page loads the prototype from a relative path:
+
+```bash
+cd html && python3 -m http.server 8000
+```
+
+Anything asserted on the support page about privacy has to stay true of the shipped app. The
+claims are narrow on purpose: no network code, no analytics, no accounts, no tracking, and
+patterns that stay on the device.
 
 Note what is deliberately **not** claimed. The page does not say the app stores nothing, because
 on-device persistence is planned before the first release and that claim would go stale. Storing

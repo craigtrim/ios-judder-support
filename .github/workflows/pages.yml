@@ -1,0 +1,38 @@
+# Publishes html/ to GitHub Pages.
+#
+# The built-in "deploy from a branch" source can only serve the repository root or /docs, and the
+# site lives in html/. An Actions deployment can publish any directory, so it is what makes
+# judder-haptics.com serve html/index.html at the apex. There is still no build step: the artifact
+# is the directory, uploaded as it sits in the repository.
+name: Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two pushes race a deployment, and never cancel one half-done: a partially replaced site
+# is worse than a stale one when App Store review is reading it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: html
+      - id: deployment
+        uses: actions/deploy-pages@v4

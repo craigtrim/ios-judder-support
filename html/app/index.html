@@ -1,0 +1,1448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Haptic Lab</title>
+<!-- ============================================================================
+     HAPTIC LAB — the app.
+
+     Not a page about the app. This IS the app: one root TabView, three tabs,
+     a pushed editor, four sheets. Drive it.
+
+     Swift shape it specs:
+       HapticLabApp  -> WindowGroup { RootTabView() }.preferredColorScheme(.dark)
+       RootTabView   -> TabView { PatternsTab; RecipesTab; EngineTab }
+       PatternsTab   -> NavigationStack { PatternList -> EditorView }
+       EditorView    -> Canvas lane stack + Form inspector + .bottomBar transport,
+                        .toolbar(.hidden, for: .tabBar)
+       Sheets        -> .confirmationDialog (menu), .sheet (sound, export, add)
+
+     resolve() below is a line-for-line mirror of HapticTimeline.resolve in
+     ios/Sources/Model/HapticLab.swift. Every span, count and burst comb drawn
+     here is the app's real arithmetic.
+     ========================================================================= -->
+<style>
+/* ============================================================ 1. TOKENS ==== */
+:root{
+  /* iOS dark system palette */
+  --bg:#000;
+  --cell:#1c1c1e;
+  --cell-2:#2c2c2e;
+  --cell-hi:#3a3a3c;
+  --sep:rgba(84,84,88,.62);
+  --label:#fff;
+  --label-2:rgba(235,235,245,.60);
+  --label-3:rgba(235,235,245,.30);
+  --fill:rgba(118,118,128,.24);
+  --bar:rgba(22,22,24,.78);
+
+  /* exactly two semantic colours: haptic energy, audio bed */
+  --tint:#ff9f0a;
+  --audio:#0a84ff;
+  --red:#ff453a;
+  --green:#30d158;
+
+  --ui:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display',system-ui,sans-serif;
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,monospace;
+
+  --status-h:56px;
+  --nav-h:44px;
+  --tab-h:49px;
+  --home-h:34px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:#141416;
+  font-family:var(--ui);
+  color:var(--label);
+  display:grid;place-items:center;
+  overflow:hidden;
+}
+
+/* ====================================================== 2. DEVICE FRAME ==== */
+.device{
+  width:393px;height:852px;position:relative;flex:none;
+  border-radius:56px;background:#000;
+  box-shadow:0 0 0 11px #1b1b1e, 0 0 0 13px #35353a, 0 40px 90px rgba(0,0,0,.7);
+}
+.screen{
+  position:absolute;inset:0;border-radius:45px;overflow:hidden;
+  background:var(--bg);display:flex;flex-direction:column;
+}
+/* on a real phone the app fills the phone — no frame, no page */
+@media (max-width:480px){
+  body{display:block;background:#000}
+  .device{width:100vw;height:100dvh;border-radius:0;box-shadow:none}
+  .screen{border-radius:0}
+}
+
+/* ========================================================= 3. STATUS BAR === */
+.statusbar{
+  position:absolute;top:0;left:0;right:0;height:var(--status-h);z-index:80;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 32px 0;font-size:15px;font-weight:600;letter-spacing:.2px;
+  pointer-events:none;
+}
+.island{
+  position:absolute;top:11px;left:50%;transform:translateX(-50%);
+  width:125px;height:36px;border-radius:20px;background:#000;z-index:81;pointer-events:none;
+}
+.statusbar .glyphs{display:flex;align-items:center;gap:6px}
+
+/* =========================================================== 4. NAV STACK == */
+.stack{position:absolute;inset:0;overflow:hidden}
+.view{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  background:var(--bg);
+  transition:transform .38s cubic-bezier(.32,.72,0,1);
+  will-change:transform;
+}
+.view.push-in{transform:translateX(100%)}
+.view.behind{transform:translateX(-28%)}
+.view.behind::after{content:'';position:absolute;inset:0;background:#000;opacity:.38;pointer-events:none}
+
+/* ============================================================= 5. NAVBAR === */
+.nav{
+  position:relative;z-index:40;flex:none;
+  padding-top:var(--status-h);
+  background:var(--bar);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
+}
+.nav::after{
+  content:'';position:absolute;left:0;right:0;bottom:0;height:.5px;background:var(--sep);
+  opacity:0;transition:opacity .2s;
+}
+.nav.collapsed::after{opacity:1}
+.nav-row{height:var(--nav-h);display:flex;align-items:center;padding:0 8px;position:relative}
+.nav-title{
+  position:absolute;left:50%;transform:translateX(-50%);
+  font-size:17px;font-weight:600;letter-spacing:-.2px;white-space:nowrap;
+  opacity:0;transition:opacity .2s;pointer-events:none;max-width:52%;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.nav.collapsed .nav-title{opacity:1}
+.nav-btn{
+  display:flex;align-items:center;gap:2px;background:none;border:0;color:var(--tint);
+  font-family:var(--ui);font-size:17px;padding:6px 8px;cursor:pointer;letter-spacing:-.2px;
+}
+.nav-btn:active{opacity:.4}
+.nav-btn.icon{padding:6px;border-radius:50%}
+.nav-spacer{flex:1}
+.large-title-wrap{transition:height .18s}
+.large-title{
+  padding:0 20px 8px;font-size:34px;font-weight:700;letter-spacing:.36px;
+  transition:opacity .18s,transform .18s;transform-origin:left bottom;
+}
+.nav.collapsed .large-title{opacity:0;transform:translateY(-6px) scale(.86)}
+.nav.collapsed .large-title-wrap{height:0;overflow:hidden}
+
+/* =========================================================== 6. SCROLLER === */
+.scroll{
+  flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
+  padding-bottom:calc(var(--tab-h) + var(--home-h) + 16px);
+}
+.scroll::-webkit-scrollbar{display:none}
+.view.no-tabs .scroll{padding-bottom:calc(56px + var(--home-h) + 12px)}
+
+/* ============================================== 7. INSET-GROUPED LISTS ===== */
+.sec-hdr{
+  padding:22px 32px 7px;font-size:13px;color:var(--label-2);
+  text-transform:uppercase;letter-spacing:.6px;
+}
+.sec-hdr .r{
+  float:right;text-transform:none;letter-spacing:0;font-family:var(--mono);
+  font-size:11px;color:var(--label-3);font-variant-numeric:tabular-nums;
+}
+.group{margin:0 16px;background:var(--cell);border-radius:11px;overflow:hidden}
+.row{
+  display:flex;align-items:center;gap:12px;padding:11px 14px;
+  min-height:48px;position:relative;cursor:pointer;background:var(--cell);
+  transition:background .12s;
+}
+.row:active{background:var(--cell-2)}
+.row.static{cursor:default}
+.row.static:active{background:var(--cell)}
+.row.sel{background:var(--cell-2)}
+.row + .row::before{content:'';position:absolute;top:0;left:14px;right:0;height:.5px;background:var(--sep)}
+.row.indent + .row::before{left:72px}
+.row .t{flex:1;min-width:0}
+.row .t b{display:block;font-size:17px;font-weight:400;letter-spacing:-.4px}
+.row .t small{display:block;font-size:13px;color:var(--label-2);margin-top:2px;letter-spacing:-.08px}
+.row .v{font-size:17px;color:var(--label-2);letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+.row .v.mono{font-family:var(--mono);font-size:13px}
+.chev{width:8px;height:13px;flex:none}
+.footnote{padding:8px 32px 0;font-size:13px;color:var(--label-2);line-height:1.4;letter-spacing:-.08px}
+
+/* ============================================================ 8. CONTROLS == */
+.switch{
+  width:51px;height:31px;border-radius:16px;background:var(--fill);flex:none;
+  position:relative;transition:background .22s;cursor:pointer;
+}
+.switch.on{background:var(--green)}
+.switch i{
+  position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;
+  background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.4);
+  transition:transform .22s cubic-bezier(.32,.72,0,1);
+}
+.switch.on i{transform:translateX(20px)}
+
+.seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;position:relative;margin:0 16px}
+.seg button{
+  flex:1;background:none;border:0;color:var(--label);font-family:var(--ui);
+  font-size:13px;font-weight:500;padding:6px 4px;border-radius:7px;cursor:pointer;
+  z-index:1;letter-spacing:-.08px;
+}
+.seg button.on{font-weight:600}
+.seg .pill{
+  position:absolute;top:2px;bottom:2px;left:2px;width:0;border-radius:7px;background:var(--cell-hi);
+  box-shadow:0 3px 8px rgba(0,0,0,.35);
+  transition:left .24s cubic-bezier(.32,.72,0,1),width .24s cubic-bezier(.32,.72,0,1);
+}
+
+.slider-row{padding:9px 16px 11px;background:var(--cell);position:relative}
+.slider-row + .slider-row::before{content:'';position:absolute;top:0;left:16px;right:0;height:.5px;background:var(--sep)}
+.slider-row .lab{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1px}
+.slider-row .lab span{font-size:15px;letter-spacing:-.24px}
+.slider-row .lab b{
+  font-family:var(--mono);font-size:13px;font-weight:500;color:var(--tint);
+  font-variant-numeric:tabular-nums;
+}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:28px;
+  background:transparent;cursor:pointer;display:block;
+}
+input[type=range]::-webkit-slider-runnable-track{
+  height:4px;border-radius:2px;
+  background:linear-gradient(to right,var(--tint) 0 var(--p,50%),var(--fill) var(--p,50%) 100%);
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 4px rgba(0,0,0,.55);margin-top:-11px;
+}
+input[type=range].audio::-webkit-slider-runnable-track{
+  background:linear-gradient(to right,var(--audio) 0 var(--p,50%),var(--fill) var(--p,50%) 100%);
+}
+
+.searchbar{margin:0 16px;position:relative;padding-bottom:8px}
+.searchbar input{
+  width:100%;height:36px;border-radius:10px;border:0;background:var(--fill);
+  color:var(--label);font-family:var(--ui);font-size:17px;padding:0 12px 0 32px;letter-spacing:-.4px;
+}
+.searchbar input::placeholder{color:var(--label-3)}
+.searchbar svg{position:absolute;left:10px;top:11px;opacity:.4}
+
+/* ============================================================= 9. TAB BAR == */
+.tabbar{
+  position:absolute;left:0;right:0;bottom:0;z-index:50;
+  height:calc(var(--tab-h) + var(--home-h));padding-bottom:var(--home-h);
+  background:var(--bar);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
+  display:flex;align-items:flex-start;
+  transition:transform .34s cubic-bezier(.32,.72,0,1);
+}
+.tabbar::before{content:'';position:absolute;top:0;left:0;right:0;height:.5px;background:var(--sep)}
+.tabbar.away{transform:translateY(110%)}
+.tab{
+  flex:1;background:none;border:0;cursor:pointer;padding:7px 0 0;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  color:var(--label-3);font-family:var(--ui);font-size:10px;font-weight:500;letter-spacing:.06px;
+}
+.tab.on{color:var(--tint)}
+.tab svg{display:block}
+
+/* ======================================================= 10. BOTTOM BAR ==== */
+.transport{
+  position:absolute;left:0;right:0;bottom:0;z-index:50;
+  height:calc(56px + var(--home-h));padding:0 14px var(--home-h);
+  background:var(--bar);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
+  display:flex;align-items:center;gap:12px;
+}
+.transport::before{content:'';position:absolute;top:0;left:0;right:0;height:.5px;background:var(--sep)}
+.play{
+  width:40px;height:40px;border-radius:50%;flex:none;border:0;cursor:pointer;
+  background:var(--tint);display:grid;place-items:center;transition:transform .1s,background .2s;
+}
+.play:active{transform:scale(.92)}
+.play.playing{background:var(--cell-hi)}
+.readout{
+  flex:1;min-width:0;font-family:var(--mono);font-size:11px;line-height:1.45;
+  color:var(--label-2);font-variant-numeric:tabular-nums;
+}
+.readout b{color:var(--label);font-weight:500}
+.readout .warn{color:var(--tint)}
+.tbtn{background:none;border:0;color:var(--tint);cursor:pointer;padding:7px;display:grid;place-items:center}
+.tbtn:active{opacity:.4}
+
+/* ========================================================== 11. TIMELINE === */
+.canvas-wrap{margin:6px 16px 0;position:relative}
+.lanes{
+  width:100%;height:238px;display:block;border-radius:12px;background:#0d0d0f;
+  border:.5px solid rgba(255,255,255,.07);
+}
+.lane-key{
+  display:flex;gap:14px;padding:7px 4px 0;font-family:var(--mono);font-size:10px;
+  color:var(--label-3);letter-spacing:.3px;
+}
+.lane-key i{width:7px;height:7px;border-radius:2px;display:inline-block;margin-right:5px}
+.lane-key span{display:flex;align-items:center}
+.lane-key .add{margin-left:auto;color:var(--tint);cursor:pointer;font-family:var(--ui);font-size:13px;letter-spacing:-.08px}
+
+/* ============================================================= 12. SHEET === */
+.scrim{
+  position:absolute;inset:0;z-index:70;background:rgba(0,0,0,.48);
+  opacity:0;pointer-events:none;transition:opacity .34s;
+}
+.scrim.up{opacity:1;pointer-events:auto}
+.sheet{
+  position:absolute;left:0;right:0;bottom:0;z-index:71;
+  background:#1c1c1e;border-radius:12px 12px 0 0;
+  transform:translateY(102%);transition:transform .42s cubic-bezier(.32,.72,0,1);
+  display:flex;flex-direction:column;max-height:88%;
+  box-shadow:0 -1px 0 rgba(255,255,255,.07);
+}
+.sheet.up{transform:translateY(0)}
+.grabber{width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,.3);margin:6px auto 0;flex:none}
+.sheet-nav{height:52px;display:flex;align-items:center;padding:0 16px;flex:none;position:relative}
+.sheet-nav b{position:absolute;left:50%;transform:translateX(-50%);font-size:17px;font-weight:600;letter-spacing:-.4px}
+.sheet-body{overflow-y:auto;padding-bottom:calc(var(--home-h) + 12px)}
+.sheet-body::-webkit-scrollbar{display:none}
+
+/* action sheet (.confirmationDialog) */
+.dialog{
+  position:absolute;left:8px;right:8px;bottom:calc(var(--home-h) + 8px);z-index:71;
+  transform:translateY(160%);transition:transform .4s cubic-bezier(.32,.72,0,1);
+}
+.dialog.up{transform:translateY(0)}
+.dialog .card{
+  border-radius:14px;overflow:hidden;background:rgba(44,44,46,.84);
+  -webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);
+}
+.dialog button{
+  display:block;width:100%;border:0;background:none;color:var(--tint);cursor:pointer;
+  font-family:var(--ui);font-size:20px;padding:17px 12px;letter-spacing:-.4px;position:relative;
+}
+.dialog button:active{background:rgba(255,255,255,.08)}
+.dialog button + button::before{content:'';position:absolute;top:0;left:0;right:0;height:.5px;background:rgba(255,255,255,.13)}
+.dialog button.danger{color:var(--red)}
+.dialog .card.cancel{margin-top:8px;background:rgba(62,62,64,.92)}
+.dialog .card.cancel button{font-weight:600;color:var(--label)}
+
+/* ============================================================= 13. CODE ==== */
+.code{
+  margin:0 16px;background:#0d0d0f;border:.5px solid rgba(255,255,255,.07);border-radius:11px;
+  padding:12px 14px;font-family:var(--mono);font-size:10.5px;line-height:1.62;
+  color:rgba(235,235,245,.72);white-space:pre;overflow-x:auto;letter-spacing:.1px;
+}
+.code::-webkit-scrollbar{display:none}
+.code .k{color:#ff7ab2}.code .s{color:#ff9f0a}.code .n{color:#a5d6ff}.code .c{color:rgba(235,235,245,.34)}
+.cta{
+  margin:14px 16px 0;height:50px;border-radius:12px;border:0;width:calc(100% - 32px);
+  background:var(--tint);color:#000;font-family:var(--ui);font-size:17px;font-weight:600;
+  letter-spacing:-.4px;cursor:pointer;
+}
+.cta:active{opacity:.8}
+.cta.plain{background:var(--fill);color:var(--tint)}
+
+.pill-badge{
+  font-family:var(--mono);font-size:10px;letter-spacing:.4px;padding:3px 7px;border-radius:5px;
+  background:rgba(255,159,10,.16);color:var(--tint);flex:none;
+}
+.pill-badge.ok{background:rgba(48,209,88,.16);color:var(--green)}
+.pill-badge.off{background:var(--fill);color:var(--label-3)}
+.thumb{width:48px;height:34px;flex:none;border-radius:6px;background:#0d0d0f;display:block}
+</style>
+</head>
+<body>
+
+<div class="device"><div class="screen">
+
+  <!-- ------------------------------------------------------- status bar --- -->
+  <div class="island"></div>
+  <div class="statusbar">
+    <span>9:41</span>
+    <span class="glyphs">
+      <svg width="18" height="12" viewBox="0 0 18 12" fill="#fff"><rect y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" width="3" height="12" rx="1"/></svg>
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="#fff"><path d="M8.5 11.4 6.2 8.9a3.4 3.4 0 0 1 4.6 0zM3.6 6.3a7.3 7.3 0 0 1 9.8 0l1.5-1.6a9.5 9.5 0 0 0-12.8 0zM.5 3a11.8 11.8 0 0 1 16 0l1.4-1.6a13.9 13.9 0 0 0-18.8 0z"/></svg>
+      <svg width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="22" height="12" rx="3.8" fill="none" stroke="#fff" stroke-opacity=".38"/><rect x="2" y="2" width="17" height="9" rx="2.5" fill="#fff"/><path d="M24.5 4.4v4.2a2.6 2.6 0 0 0 0-4.2z" fill="#fff" fill-opacity=".4"/></svg>
+    </span>
+  </div>
+
+  <!-- --------------------------------------------------------- nav stack -- -->
+  <div class="stack" id="stack"></div>
+
+  <!-- ----------------------------------------------------------- tab bar -- -->
+  <nav class="tabbar" id="tabbar">
+    <button class="tab on" data-tab="patterns">
+      <svg width="26" height="22" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M13 2v18M8.6 5.6v10.8M17.4 5.6v10.8M4.2 8.8v4.4M21.8 8.8v4.4"/></svg>
+      Patterns
+    </button>
+    <button class="tab" data-tab="recipes">
+      <svg width="24" height="22" viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1.6" y="2.4" width="20.8" height="16.6" rx="3.2"/><path d="M1.6 7.8h20.8M7.6 7.8V19"/></svg>
+      Recipes
+    </button>
+    <button class="tab" data-tab="engine">
+      <svg width="24" height="22" viewBox="0 0 24 22" fill="none"><path d="M2.5 5.6h19M2.5 11h19M2.5 16.4h19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="5.6" r="2.7" fill="#000" stroke="currentColor" stroke-width="1.8"/><circle cx="16" cy="11" r="2.7" fill="#000" stroke="currentColor" stroke-width="1.8"/><circle cx="7" cy="16.4" r="2.7" fill="#000" stroke="currentColor" stroke-width="1.8"/></svg>
+      Engine
+    </button>
+  </nav>
+
+  <!-- --------------------------------------------------------- sheet layer -->
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" id="sheet">
+    <div class="grabber"></div>
+    <div class="sheet-nav">
+      <button class="nav-btn" id="sheet-cancel" style="margin-left:-8px">Cancel</button>
+      <b id="sheet-title">Sheet</b>
+      <span class="nav-spacer"></span>
+      <button class="nav-btn" id="sheet-done" style="font-weight:600;margin-right:-8px">Done</button>
+    </div>
+    <div class="sheet-body" id="sheet-body"></div>
+  </div>
+  <div class="dialog" id="dialog"></div>
+
+</div></div>
+
+<script>
+/* ==========================================================================
+   1. ENGINE — mirror of HapticTimeline.resolve
+      (ios/Sources/Model/HapticLab.swift)
+   ========================================================================== */
+const HL = {
+  unit:    v => Math.min(1, Math.max(0, v)),
+  seconds: v => Math.min(30, Math.max(0, v)),
+  step:    v => Math.min(0.5, Math.max(0.01, v)),
+  transientTail: 0.08,
+  maxEvents: 512,
+  maxBurstHits: 256,
+};
+
+/* Gaps are measured from the PREVIOUS event's start, not its end — which is
+   why a burst can sit on top of a continuous bed instead of after it. That
+   overlap is the one thing a vertical list of rows cannot show. */
+function resolve(p){
+  const out = []; let prevStart = 0, maxEnd = 0, burstHits = 0, truncated = false;
+  p.events.forEach((e, i) => {
+    if (out.length >= HL.maxEvents){ truncated = true; return; }
+    const start = (i === 0 ? 0 : prevStart) + Math.max(0, e.gap || 0);
+    prevStart = start;
+    const len = e.type === 'transient' ? HL.transientTail : HL.seconds(e.duration);
+    maxEnd = Math.max(maxEnd, start + len);
+    if (e.type === 'transient'){
+      out.push({src:i, start, dur:null, intensity:HL.unit(e.intensity), sharpness:HL.unit(e.sharpness)});
+    } else if (e.type === 'continuous'){
+      out.push({src:i, start, dur:HL.seconds(e.duration), intensity:HL.unit(e.intensity),
+                sharpness:HL.unit(e.sharpness), attack:HL.unit(e.attack), release:HL.unit(e.release)});
+    } else {
+      const dur = HL.seconds(e.duration), st = HL.step(e.burstStep); let k = 0;
+      while (k * st < dur && k < HL.maxBurstHits){
+        out.push({src:i, start:start + k*st, dur:null,
+                  intensity:HL.unit(e.intensity), sharpness:HL.unit(e.sharpness)});
+        k++;
+      }
+      burstHits = Math.max(burstHits, k);
+      if (k >= HL.maxBurstHits) truncated = true;
+    }
+  });
+  return {events: out.slice(0, HL.maxEvents), duration: maxEnd, burstHits, truncated};
+}
+/* Attack / hold / fade control points, scaled to the span. */
+function curvePoints(d){
+  if (d <= 0.25) return null;
+  const a = Math.min(0.1, d*0.25), h = Math.max(a+0.01, d-0.1);
+  return [[0,0.3],[a,1.0],[h,1.0],[d,0.0]];
+}
+const f2 = v => Number(v).toFixed(2);
+
+/* ==========================================================================
+   2. DATA — general-purpose haptics, not a game's vocabulary
+   ========================================================================== */
+const ev = o => Object.assign(
+  {gap:0, intensity:.8, sharpness:.5, duration:.3, attack:.1, release:.3, burstStep:.05}, o);
+
+let PATTERNS = [
+  {id:'density', name:'Density Bed', note:'Bed with a 30 Hz comb over it', starter:false, verified:'iPhone 15 Pro',
+   audio:{on:true, file:'alert-bed-low.caf', gain:.8, loop:true},
+   events:[ ev({type:'continuous', intensity:1.0, sharpness:.35, duration:1.6, attack:.06, release:.1}),
+            ev({type:'burst', intensity:.9, sharpness:.9, duration:1.6, burstStep:.033}) ]},
+
+  {id:'tap', name:'Tap Confirm', note:'One transient, nothing else', starter:false, verified:'iPhone 15 Pro',
+   audio:{on:false, file:'click-body.caf', gain:.5, loop:false},
+   events:[ ev({type:'transient', intensity:.6, sharpness:.5}) ]},
+
+  {id:'alert', name:'Alert Pulse', note:'Alarms, incoming calls, timers', starter:true, verified:'iPhone 15 Pro',
+   audio:{on:false, file:'alert-bed-low.caf', gain:.7, loop:false},
+   events:[ ev({type:'transient', intensity:1.0, sharpness:.9}),
+            ev({type:'transient', gap:.14, intensity:1.0, sharpness:.9}),
+            ev({type:'transient', gap:.14, intensity:.8,  sharpness:.7}) ]},
+
+  {id:'hold', name:'Press & Hold', note:'Hum under a long press', starter:true, verified:'iPhone 15 Pro',
+   audio:{on:false, file:'alert-bed-low.caf', gain:.5, loop:true},
+   events:[ ev({type:'continuous', intensity:.55, sharpness:.25, duration:.9, attack:.35, release:.5}) ]},
+
+  {id:'checkout', name:'Checkout Success', note:'Completion cadence, not an alert', starter:true, verified:null,
+   audio:{on:true, file:'click-body.caf', gain:.6, loop:false},
+   events:[ ev({type:'continuous', intensity:.4, sharpness:.2, duration:.32, attack:.1, release:.6}),
+            ev({type:'transient', gap:.06, intensity:.7, sharpness:.6}),
+            ev({type:'transient', gap:.12, intensity:1.0, sharpness:.85}) ]},
+
+  {id:'scrub', name:'Scrub Texture', note:'Fused grain under a drag', starter:true, verified:'iPhone 13 mini',
+   audio:{on:false, file:'grain-soft.caf', gain:.4, loop:true},
+   events:[ ev({type:'burst', intensity:.35, sharpness:.75, duration:.6, burstStep:.035}) ]},
+];
+
+const RECIPES = [
+  {p:'alert',    where:'UNUserNotification, CallKit'},
+  {p:'hold',     where:'contextMenu, .onLongPressGesture'},
+  {p:'checkout', where:'payment confirm, upload complete'},
+  {p:'scrub',    where:'DragGesture over a scrubber'},
+  {p:'tap',      where:'toggle, segmented pick'},
+  {p:'density',  where:'sustained physical feedback'},
+];
+
+const TYPE_LABEL = {transient:'Transient', continuous:'Continuous', burst:'Burst'};
+const byId = id => PATTERNS.find(p => p.id === id);
+
+/* engine settings — @State on the root view, not fields on a pattern */
+const ENGINE = {hapticsOnly:false, session:1, sharpnessScale:1.0, resume:true};
+const SESSIONS = ['Ambient','Playback','Mixable'];
+
+/* ==========================================================================
+   3. TIMELINE DRAWING
+   ========================================================================== */
+const DULL = [178, 96, 12], SHARP = [255, 199, 108];
+const sharpColor = (s, a) => {
+  const c = DULL.map((v,i) => Math.round(v + (SHARP[i]-v)*s));
+  return `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+};
+function gridStep(span){
+  for (const s of [0.02,0.05,0.1,0.2,0.25,0.5,1,2,5]) if (span/s <= 8) return s;
+  return 10;
+}
+
+/* --------------------------------------------------------------------------
+   SIGNAL — an event is an envelope, not a waveform.
+
+   Core Haptics never hands you samples. It hands you events: an onset, an
+   intensity, a sharpness, and for a continuous a duration with an attack and
+   a release. So the lane draws exactly that. A transient is an instantaneous
+   rise and an exponential ring-down. A continuous is attack, hold, release at
+   its intensity.
+
+   TWO LAYERS, NOT FIFTY. Every continuous goes into one bed layer and every
+   transient into one hit layer. Inside a layer the shapes are drawn opaque, so
+   they union rather than accumulate; the layer is then laid down at a single
+   alpha. Fifty overlapping ring-downs therefore weigh exactly what one weighs,
+   and the floor between two hits is where the previous hit's decay has fallen
+   to, not a summed slab. Only where the hit layer crosses the bed layer does
+   the eye have two weights to read, which is the one overlap that matters.
+
+   BRIGHTNESS IS LEVEL. One gradient spans the lane and every layer is shaded
+   through it, so a tip at 1.00 is lit and a bed at 0.40 sits in a dimmer band.
+   Each shape is therefore bright at its crest and dark at its baseline, and a
+   long continuous stops being one flat block: you can read its height off its
+   own body. No texture, no hatching, nothing repeating.
+
+   Nothing here is bipolar. Audio swings through zero; haptic drive does not.
+   -------------------------------------------------------------------------- */
+const BED_LEN = 0.80;                     // s — bundled bed length
+const tailOf = i => 0.10 + 0.045 * i;     // s — a harder hit rings a little longer
+
+/* A struck actuator rings down; it does not ramp down. RING_K sets how fast,
+   and the subtraction lands the curve exactly on zero at the end of the tail
+   so the outline still closes cleanly on the baseline. */
+const RING_K = 3.6, RING_E = Math.exp(-RING_K);
+const ringDown = u => (Math.exp(-RING_K*u) - RING_E) / (1 - RING_E);
+
+/* Envelope outline of one resolved event as (time, level) pairs, level 0..1. */
+function shapeOf(e){
+  if (e.dur == null){
+    const d = tailOf(e.intensity), pts = [[e.start, 0]];
+    for (let j = 0; j <= 16; j++){
+      const u = j/16;
+      pts.push([e.start + u*d, e.intensity * ringDown(u)]);
+    }
+    return {fill:.48, end:e.start + d, top:e.intensity, pts};
+  }
+  let aT = e.dur*e.attack*.5, rT = e.dur*e.release*.5;
+  const over = (aT + rT)/e.dur;
+  if (over > 1){ aT /= over; rT /= over; }
+  return {fill:.28, end:e.start + e.dur, top:e.intensity,
+          pts:[[e.start,0],[e.start+aT,e.intensity],
+               [e.start+e.dur-rT,e.intensity],[e.start+e.dur,0]]};
+}
+
+/* Level of one shape at time t, 0 outside its own extent. Segments are scanned
+   rather than bisected because a transient's onset is a vertical pair sharing
+   one timestamp, and the max across segments resolves that tie upward. */
+function levelAt(s, t){
+  const p = s.pts;
+  let v = 0;
+  for (let i = 1; i < p.length; i++){
+    const t0 = p[i-1][0], t1 = p[i][0];
+    if (t < t0 || t > t1) continue;
+    const u = t1 > t0 ? (t - t0)/(t1 - t0) : 1;
+    const l = p[i-1][1] + (p[i][1] - p[i-1][1])*u;
+    if (l > v) v = l;
+  }
+  return v;
+}
+
+/* Union silhouette of a set of shapes, one level per pixel column. Sampling is
+   bounded to each shape's own columns, so cost tracks total coverage rather
+   than events times width. */
+function unionLevels(shapes, n, span){
+  const lv = new Float32Array(n + 1);
+  for (const s of shapes){
+    const i0 = Math.max(0, Math.floor(s.pts[0][0]/span*n) - 1);
+    const i1 = Math.min(n, Math.ceil(s.end/span*n) + 1);
+    for (let i = i0; i <= i1; i++){
+      const v = levelAt(s, (i/n)*span);
+      if (v > lv[i]) lv[i] = v;
+    }
+  }
+  return lv;
+}
+
+function traceLevels(g, lv, n, x, y, span){
+  g.beginPath();
+  g.moveTo(x(0), y(0));
+  for (let i = 0; i <= n; i++) g.lineTo(x((i/n)*span), y(lv[i]));
+  g.lineTo(x(span), y(0));
+  g.closePath();
+}
+
+/* Bed magnitude for the audio lane, deterministic per filename so the same
+   file always draws the same picket. Audio IS a signal, so this one keeps its
+   peaks and valleys — it is the haptic lane that must not pretend to be one. */
+function bedMag(t, i, seed, gain, loop){
+  if (!loop && t > BED_LEN) return 0;
+  const u = loop ? t % BED_LEN : t;
+  const atk = Math.min(1, u/.030), rel = Math.max(0, Math.min(1, (BED_LEN-u)/.11));
+  let h = (i*2654435761 + seed) >>> 0;
+  h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13;
+  const swell = .55 + .45*Math.abs(Math.sin(u*6.1 + (seed % 7)));
+  return gain * atk * rel * swell * (.40 + .60*((h >>> 8)/16777216));
+}
+
+function traceShape(g, s, x, y){
+  g.beginPath();
+  for (let i = 0; i < s.pts.length; i++){
+    const px = x(s.pts[i][0]), py = y(s.pts[i][1]);
+    i ? g.lineTo(px, py) : g.moveTo(px, py);
+  }
+  g.closePath();
+}
+
+/* Scratch buffers, one per drawing site so the lane's per-frame buffer is not
+   resized by a thumbnail drawn between frames. */
+const _bufs = {};
+function layerBuf(key, W, H, dpr){
+  let c = _bufs[key];
+  if (!c) c = _bufs[key] = document.createElement('canvas');
+  const w = Math.max(1, Math.ceil(W*dpr)), h = Math.max(1, Math.ceil(H*dpr));
+  if (c.width !== w || c.height !== h){ c.width = w; c.height = h; }
+  const b = c.getContext('2d');
+  b.setTransform(dpr,0,0,dpr,0,0);
+  b.clearRect(0,0,W,H);
+  return b;
+}
+
+/* One gradient, spanning the lane rather than the shape, applied to the whole
+   layer at once. Level maps to luminance the same way everywhere: a crest at
+   1.00 is lit, a bed at 0.40 sits mid-band, and every body darkens toward its
+   own baseline. This is what replaced the ribbing, and unlike ribbing it
+   carries information and never repeats. */
+function shadeByLevel(b, W, yTop, yBot){
+  b.globalCompositeOperation = 'source-atop';
+  const gr = b.createLinearGradient(0, yTop, 0, yBot);
+  gr.addColorStop(0.00, 'rgba(255,255,255,0.26)');
+  gr.addColorStop(0.30, 'rgba(255,255,255,0.05)');
+  gr.addColorStop(0.55, 'rgba(0,0,0,0.10)');
+  gr.addColorStop(1.00, 'rgba(0,0,0,0.58)');
+  b.fillStyle = gr;
+  b.fillRect(0, Math.min(yTop, yBot) - 4, W, Math.abs(yBot - yTop) + 8);
+  b.globalCompositeOperation = 'source-over';
+}
+
+/* Composite a set of events as ONE layer: opaque inside the buffer so overlap
+   unions, then blitted once at the layer's alpha. The played-through region is
+   a second clipped blit, so state is a wash over the lane rather than a
+   per-event flag that would break the union. */
+function paintLayer(key, g, evs, x, y, W, H, dpr, yTop, yBot, alpha, headX){
+  if (!evs.length) return;
+  const b = layerBuf(key, W, H, dpr);
+  b.lineJoin = 'round';
+  for (const e of evs){
+    traceShape(b, shapeOf(e), x, y);
+    b.fillStyle = sharpColor(e.sharpness, 1);
+    b.fill();
+  }
+  shadeByLevel(b, W, yTop, yBot);
+  const buf = _bufs[key];
+  g.save(); g.globalAlpha = alpha; g.drawImage(buf, 0, 0, W, H); g.restore();
+  if (headX > 0){
+    g.save();
+    g.beginPath(); g.rect(0, 0, headX, H); g.clip();
+    g.globalAlpha = Math.min(1, alpha*0.55);
+    g.drawImage(buf, 0, 0, W, H);
+    g.restore();
+  }
+}
+
+/* Intensity-weighted mean sharpness, for the one stroke that stands in for a
+   comb too dense to outline hit by hit. */
+function meanSharp(evs){
+  let n = 0, d = 0;
+  for (const e of evs){ n += e.sharpness * e.intensity; d += e.intensity; }
+  return d > 0 ? n/d : 0.5;
+}
+
+/* Outline pass. Below roughly two-deep overlap each hit is outlined on its own,
+   which is what lets a decay be seen crossing behind the hit that follows it.
+   Past that the individual hypotenuses cross four deep and become crosshatch,
+   so the lane strokes the union silhouette instead and the comb stays a comb. */
+function strokeOutlines(g, beds, hits, x, y, span, L, R, lw){
+  g.lineJoin = 'round'; g.lineWidth = lw || 1.5;
+  for (const e of beds){
+    traceShape(g, shapeOf(e), x, y);
+    g.strokeStyle = sharpColor(e.sharpness, .82);
+    g.stroke();
+  }
+  if (!hits.length) return;
+  let cover = 0;
+  const shapes = hits.map(shapeOf);
+  shapes.forEach(s => { cover += s.end - s.pts[0][0]; });
+  if (cover / Math.max(1e-3, span) <= 2.2){
+    hits.forEach((e, i) => {
+      traceShape(g, shapes[i], x, y);
+      g.strokeStyle = sharpColor(e.sharpness, .95);
+      g.stroke();
+    });
+  } else {
+    const n = Math.max(8, Math.round(R - L));
+    traceLevels(g, unionLevels(shapes, n, span), n, x, y, span);
+    g.strokeStyle = sharpColor(meanSharp(hits), .95);
+    g.stroke();
+  }
+}
+
+/* Drawn span runs to the end of the last ring-out, not to the scheduled span,
+   so a decay is never sliced off at the right edge. */
+function drawnSpan(r){
+  let end = r.duration;
+  r.events.forEach(e => { end = Math.max(end, shapeOf(e).end); });
+  return Math.max(end, 0.12);
+}
+
+function drawLanes(cv, pat, playT, sel){
+  const r = resolve(pat);
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  const W = cv.clientWidth, H = cv.clientHeight;
+  if (!W) return r;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const g = cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,W,H);
+
+  const span = drawnSpan(r);
+  const L = 10, R = W - 10, rulerH = 17;
+  const audioH = pat.audio.on ? 52 : 0;
+  const hapTop = rulerH + 13;                          // level 1.0
+  const hapBot = H - 8 - (audioH ? audioH + 10 : 0);   // level 0
+  const k = hapBot - hapTop;
+  const x = t => L + (t/span) * (R-L);
+  const y = v => hapBot - v*k;
+  const headX = playT != null ? x(Math.min(playT, span)) : -1;
+
+  /* ---- ruler + grid ---------------------------------------------------- */
+  const gs = gridStep(span);
+  g.font = '9px ui-monospace,SF Mono,Menlo,monospace';
+  g.textBaseline = 'top';
+  for (let t = 0; t <= span + 1e-9; t += gs){
+    const px = Math.round(x(t)) + .5;
+    g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(px, rulerH); g.lineTo(px, H-6); g.stroke();
+    g.fillStyle = 'rgba(235,235,245,.30)';
+    g.fillText(t === 0 ? '0' : t.toFixed(gs < 1 ? 2 : 1), px + 3, 4);
+  }
+
+  /* ---- haptic lane: two layers, then outlines -------------------------- */
+  g.strokeStyle = 'rgba(255,255,255,.09)'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(L, Math.round(hapBot)+.5); g.lineTo(R, Math.round(hapBot)+.5); g.stroke();
+
+  const beds = r.events.filter(e => e.dur != null);
+  const hits = r.events.filter(e => e.dur == null);
+  paintLayer('lane', g, beds, x, y, W, H, dpr, hapTop, hapBot, .28, headX);
+  paintLayer('lane', g, hits, x, y, W, H, dpr, hapTop, hapBot, .48, headX);
+
+  /* Level contours. Three hairlines read straight through the translucent
+     bodies, so the height of a plateau can be read off the lane instead of
+     off the inspector. They are the only horizontal furniture here. */
+  g.lineWidth = 1;
+  for (const v of [0.25, 0.50, 0.75]){
+    const py = Math.round(y(v)) + .5;
+    g.strokeStyle = v === 0.50 ? 'rgba(255,255,255,.115)' : 'rgba(255,255,255,.075)';
+    g.beginPath(); g.moveTo(L, py); g.lineTo(R, py); g.stroke();
+  }
+
+  strokeOutlines(g, beds, hits, x, y, span, L, R);
+
+  /* selection bracket around the source event's whole extent */
+  if (sel != null){
+    const mine = r.events.filter(e => e.src === sel);
+    if (mine.length){
+      let last = 0;
+      mine.forEach(e => { last = Math.max(last, shapeOf(e).end); });
+      const x0 = Math.round(x(mine[0].start) - 5) + .5;
+      const x1 = Math.round(Math.min(R + 5, x(last) + 5)) + .5;
+      const y0 = Math.round(hapTop - 6) + .5, y1 = Math.round(hapBot + 5) + .5;
+      g.strokeStyle = 'rgba(255,255,255,.72)'; g.lineWidth = 1.5; g.setLineDash([2.5,2.5]);
+      g.strokeRect(x0, y0, Math.max(10, x1-x0), y1-y0);
+      g.setLineDash([]);
+    }
+  }
+
+  /* ---- audio lane ------------------------------------------------------ */
+  if (audioH){
+    const ay = H - 8 - audioH, amid = ay + audioH/2 + 5, ahalf = audioH/2 - 11;
+    g.fillStyle = 'rgba(10,132,255,.095)';
+    g.beginPath(); g.roundRect(L, ay, R-L, audioH, 6); g.fill();
+    g.strokeStyle = 'rgba(10,132,255,.20)'; g.lineWidth = 1;
+    g.beginPath(); g.roundRect(L+.5, ay+.5, R-L-1, audioH-1, 6); g.stroke();
+
+    let seed = 7;
+    for (const ch of pat.audio.file) seed = (seed*31 + ch.charCodeAt(0)) >>> 0;
+    const BW = 2, PITCH = 3.6, n = Math.floor((R - L - 12)/PITCH);
+    for (let i = 0; i < n; i++){
+      const px = L + 6 + i*PITCH;
+      const m = bedMag(((px - L)/(R-L))*span, i, seed, pat.audio.gain, pat.audio.loop);
+      if (m <= 0) continue;
+      /* normalised against the gain so a quiet bed still fills the lane —
+         the lane shows shape; the gain readout shows level */
+      const h = Math.max(1.5, Math.min(1, m/(pat.audio.gain*.82)) * ahalf * 2);
+      g.fillStyle = `rgba(10,132,255,${headX >= px ? .9 : .5})`;
+      g.fillRect(px, amid - h/2, BW, h);
+    }
+    if (pat.audio.loop){
+      g.setLineDash([2,3]); g.strokeStyle = 'rgba(10,132,255,.55)'; g.lineWidth = 1;
+      for (let t = BED_LEN; t < span; t += BED_LEN){
+        const px = Math.round(x(t)) + .5;
+        g.beginPath(); g.moveTo(px, ay + 3); g.lineTo(px, ay + audioH - 3); g.stroke();
+      }
+      g.setLineDash([]);
+    }
+    g.fillStyle = 'rgba(235,235,245,.34)';
+    g.fillText(pat.audio.file + (pat.audio.loop ? '  ·  loops every 0.80 s' : ''), L + 7, ay + 5);
+  }
+
+  /* ---- playhead -------------------------------------------------------- */
+  if (playT != null){
+    const px = Math.round(x(Math.min(playT, span))) + .5;
+    const gl = g.createLinearGradient(px - 22, 0, px, 0);
+    gl.addColorStop(0, 'rgba(255,255,255,0)');
+    gl.addColorStop(1, 'rgba(255,255,255,.06)');
+    g.fillStyle = gl; g.fillRect(px - 22, rulerH, 22, H - 6 - rulerH);
+    g.strokeStyle = '#fff'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(px, rulerH - 2); g.lineTo(px, H - 6); g.stroke();
+    g.fillStyle = '#fff';
+    g.beginPath(); g.moveTo(px-4, rulerH-7); g.lineTo(px+4, rulerH-7); g.lineTo(px, rulerH-1); g.closePath(); g.fill();
+  }
+  return r;
+}
+
+/* list thumbnail — the same envelopes, drawn from the same resolved timeline */
+function drawThumb(cv, pat){
+  const r = resolve(pat), dpr = Math.min(3, window.devicePixelRatio || 1);
+  const W = cv.clientWidth || 48, H = cv.clientHeight || 34;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const g = cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,W,H);
+  const span = drawnSpan(r), pad = 3;
+  const base = H - 4, k = base - 3;
+  const x = t => pad + (t/span)*(W - pad*2);
+  const y = v => base - v*k;
+  g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(pad, base+.5); g.lineTo(W-pad, base+.5); g.stroke();
+  /* Same two layers at 48px, no contours: a thumbnail needs its silhouette. */
+  const beds = r.events.filter(e => e.dur != null);
+  const hits = r.events.filter(e => e.dur == null);
+  paintLayer('thumb', g, beds, x, y, W, H, dpr, y(1), base, .34, -1);
+  paintLayer('thumb', g, hits, x, y, W, H, dpr, y(1), base, .56, -1);
+  strokeOutlines(g, beds, hits, x, y, span, pad, W - pad, 1);
+}
+
+/* ==========================================================================
+   4. NAVIGATION — TabView + NavigationStack
+   ========================================================================== */
+const CHEV = '<svg class="chev" viewBox="0 0 8 13" fill="none"><path d="M1.2 1.2 6.4 6.5 1.2 11.8" stroke="rgba(235,235,245,.4)" stroke-width="2" stroke-linecap="round"/></svg>';
+const BACK = '<svg width="12" height="20" viewBox="0 0 12 20" fill="none"><path d="M10 1.6 2 10l8 8.4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+const stack = document.getElementById('stack');
+const tabbar = document.getElementById('tabbar');
+let tab = 'patterns', pushed = null, editingId = null, sel = 0;
+
+const el = html => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstElementChild; };
+function mountNav(view){
+  const nav = view.querySelector('.nav'), sc = view.querySelector('.scroll');
+  if (nav && sc) sc.addEventListener('scroll', () => nav.classList.toggle('collapsed', sc.scrollTop > 14), {passive:true});
+}
+function paintRange(inp){
+  inp.style.setProperty('--p', ((inp.value - inp.min) / (inp.max - inp.min) * 100) + '%');
+}
+function wireSeg(seg, idx, cb){
+  const btns = [...seg.querySelectorAll('button')], pill = seg.querySelector('.pill');
+  const move = i => {
+    const b = btns[i];
+    pill.style.left = b.offsetLeft + 'px'; pill.style.width = b.offsetWidth + 'px';
+    btns.forEach((x,j) => x.classList.toggle('on', i === j));
+  };
+  btns.forEach((b,i) => b.onclick = () => { move(i); cb(i); });
+  requestAnimationFrame(() => move(idx));
+}
+
+function render(){
+  stopPlay();
+  stack.innerHTML = '';
+  const root = ROOTS[tab]();
+  root.classList.add('view');
+  stack.appendChild(root); mountNav(root);
+  pushed = null;
+  tabbar.classList.remove('away');
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+}
+function push(view){
+  view.classList.add('view','push-in','no-tabs');
+  stack.appendChild(view); mountNav(view);
+  pushed = view;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    view.classList.remove('push-in');
+    stack.firstElementChild.classList.add('behind');
+    tabbar.classList.add('away');
+  }));
+}
+function pop(){
+  if (!pushed) return;
+  stopPlay();
+  const v = pushed; pushed = null; editingId = null;
+  v.classList.add('push-in');
+  stack.firstElementChild.classList.remove('behind');
+  tabbar.classList.remove('away');
+  setTimeout(() => v.remove(), 420);
+  /* redraw thumbnails in case the pattern changed while it was open */
+  setTimeout(() => stack.querySelectorAll('[data-thumb]').forEach(c => drawThumb(c, byId(c.dataset.thumb))), 30);
+}
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
+  if (tab === b.dataset.tab && pushed){ pop(); return; }
+  tab = b.dataset.tab; stopPlay(); render();
+}));
+
+/* ==========================================================================
+   5. SHEETS
+   ========================================================================== */
+const scrim = document.getElementById('scrim'), sheet = document.getElementById('sheet'),
+      sheetBody = document.getElementById('sheet-body'), sheetTitle = document.getElementById('sheet-title'),
+      sheetCancel = document.getElementById('sheet-cancel'), sheetDone = document.getElementById('sheet-done'),
+      dialog = document.getElementById('dialog');
+let onSheetDone = null;
+
+function openSheet(title, html, opts = {}){
+  sheetTitle.textContent = title;
+  sheetBody.innerHTML = html;
+  sheetBody.scrollTop = 0;
+  sheetCancel.style.visibility = opts.noCancel ? 'hidden' : 'visible';
+  sheetDone.style.visibility   = opts.noDone   ? 'hidden' : 'visible';
+  onSheetDone = opts.onDone || null;
+  scrim.classList.add('up'); sheet.classList.add('up');
+  return sheetBody;
+}
+function closeSheet(){ scrim.classList.remove('up'); sheet.classList.remove('up'); dialog.classList.remove('up'); }
+sheetCancel.onclick = closeSheet;
+sheetDone.onclick = () => { const f = onSheetDone; closeSheet(); if (f) f(); };
+scrim.onclick = closeSheet;
+
+function openDialog(items){
+  dialog.innerHTML =
+    '<div class="card">' + items.map((it,i) =>
+      `<button data-i="${i}"${it.danger ? ' class="danger"' : ''}>${it.label}</button>`).join('') + '</div>' +
+    '<div class="card cancel"><button>Cancel</button></div>';
+  dialog.querySelectorAll('button').forEach(b => b.onclick = () => {
+    closeSheet();
+    if (b.dataset.i != null) setTimeout(() => items[+b.dataset.i].run(), 280);
+  });
+  scrim.classList.add('up'); dialog.classList.add('up');
+}
+
+/* ==========================================================================
+   6. PATTERNS TAB
+   ========================================================================== */
+function patternRow(p){
+  const r = resolve(p);
+  return `<div class="row indent" data-open="${p.id}">
+    <canvas class="thumb" data-thumb="${p.id}"></canvas>
+    <div class="t"><b>${p.name}</b><small>${p.events.length} event${p.events.length > 1 ? 's' : ''} · ${f2(r.duration)} s · ${r.events.length} resolved</small></div>
+    ${p.verified ? '<span class="pill-badge ok">DEVICE</span>' : '<span class="pill-badge off">SIM ONLY</span>'}
+    ${CHEV}</div>`;
+}
+const patternsRoot = () => {
+  const mine = PATTERNS.filter(p => !p.starter), start = PATTERNS.filter(p => p.starter);
+  const v = el(`<div>
+    <header class="nav">
+      <div class="nav-row">
+        <div class="nav-title">Patterns</div><span class="nav-spacer"></span>
+        <button class="nav-btn icon" data-new><svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 3v14M3 10h14" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="large-title-wrap"><h1 class="large-title">Patterns</h1></div>
+      <div class="searchbar">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.6" stroke="#fff" stroke-width="1.6"/><path d="M9.6 9.6 13 13" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <input placeholder="Search" />
+      </div>
+    </header>
+    <div class="scroll">
+      <div class="sec-hdr">Yours <span class="r">${mine.length}</span></div>
+      <div class="group">${mine.map(patternRow).join('') || '<div class="row static"><div class="t"><small>Nothing yet. Start from a recipe.</small></div></div>'}</div>
+      <div class="sec-hdr">Starters <span class="r">${start.length}</span></div>
+      <div class="group">${start.map(patternRow).join('')}</div>
+      <p class="footnote">DEVICE means the pattern was played on real hardware. The Simulator draws the timeline correctly and still cannot tell you how it feels, so nothing here is trusted until it carries that flag.</p>
+    </div></div>`);
+  v.querySelector('[data-new]').onclick = newPattern;
+  v.querySelectorAll('[data-open]').forEach(r => r.onclick = () => openEditor(r.dataset.open));
+  const search = v.querySelector('input');
+  search.oninput = () => {
+    const q = search.value.trim().toLowerCase();
+    v.querySelectorAll('[data-open]').forEach(r => {
+      r.style.display = !q || byId(r.dataset.open).name.toLowerCase().includes(q) ? '' : 'none';
+    });
+  };
+  requestAnimationFrame(() => v.querySelectorAll('[data-thumb]').forEach(c => drawThumb(c, byId(c.dataset.thumb))));
+  return v;
+};
+function newPattern(){
+  const id = 'p' + Date.now().toString(36);
+  PATTERNS.unshift({id, name:'Untitled', note:'', starter:false, verified:null,
+    audio:{on:false, file:'click-body.caf', gain:.5, loop:false},
+    events:[ ev({type:'transient', intensity:.8, sharpness:.5}) ]});
+  render(); openEditor(id);
+}
+
+/* ==========================================================================
+   7. RECIPES TAB
+   ========================================================================== */
+const recipesRoot = () => {
+  const v = el(`<div>
+    <header class="nav">
+      <div class="nav-row"><div class="nav-title">Recipes</div><span class="nav-spacer"></span></div>
+      <div class="large-title-wrap"><h1 class="large-title">Recipes</h1></div>
+    </header>
+    <div class="scroll">
+      <p class="footnote" style="padding-top:2px">Patterns for the moments an iOS app actually has. Open one, tune it, keep it.</p>
+      <div class="sec-hdr">Feedback</div>
+      <div class="group">${RECIPES.map(rc => {
+        const p = byId(rc.p), r = resolve(p);
+        return `<div class="row indent" data-open="${p.id}">
+          <canvas class="thumb" data-thumb="${p.id}"></canvas>
+          <div class="t"><b>${p.name}</b><small>${rc.where}</small></div>
+          <span class="v mono">${f2(r.duration)}s</span>${CHEV}</div>`;
+      }).join('')}</div>
+      <div class="sec-hdr">Primitives</div>
+      <div class="group">
+        <div class="row static"><div class="t"><b>Transient</b><small>One impulse. 0.08 s tail, no duration of its own.</small></div></div>
+        <div class="row static"><div class="t"><b>Continuous</b><small>Held vibration with attack, decay and release.</small></div></div>
+        <div class="row static"><div class="t"><b>Burst</b><small>Transients on a fixed step. Fuses into texture above ~25 Hz.</small></div></div>
+      </div>
+      <p class="footnote">Ceilings belong to the engine, not the editor: ${HL.maxEvents} events per pattern, ${HL.maxBurstHits} hits per burst. Past either, the tail is dropped and the pattern is flagged truncated.</p>
+    </div></div>`);
+  v.querySelectorAll('[data-open]').forEach(r => r.onclick = () => openEditor(r.dataset.open));
+  requestAnimationFrame(() => v.querySelectorAll('[data-thumb]').forEach(c => drawThumb(c, byId(c.dataset.thumb))));
+  return v;
+};
+
+/* ==========================================================================
+   8. ENGINE TAB — deliverySection, lifted off the pattern
+   ========================================================================== */
+const engineRoot = () => {
+  const v = el(`<div>
+    <header class="nav">
+      <div class="nav-row"><div class="nav-title">Engine</div><span class="nav-spacer"></span></div>
+      <div class="large-title-wrap"><h1 class="large-title">Engine</h1></div>
+    </header>
+    <div class="scroll">
+      <div class="sec-hdr">Delivery</div>
+      <div class="group">
+        <div class="row static"><div class="t"><b>Haptics only</b><small>Mute the audio layer everywhere</small></div>
+          <div class="switch ${ENGINE.hapticsOnly ? 'on' : ''}" data-t="hapticsOnly"><i></i></div></div>
+        <div class="row static"><div class="t"><b>Resume on foreground</b><small>Restart the engine after an interruption</small></div>
+          <div class="switch ${ENGINE.resume ? 'on' : ''}" data-t="resume"><i></i></div></div>
+      </div>
+
+      <div class="sec-hdr">Audio session</div>
+      <div class="seg" data-seg><div class="pill"></div>
+        ${SESSIONS.map((s,i) => `<button${ENGINE.session === i ? ' class="on"' : ''}>${s}</button>`).join('')}
+      </div>
+      <p class="footnote">Ambient ducks under other audio and honours the ringer switch. Playback interrupts what is already playing. Mixable sits alongside without ducking.</p>
+
+      <div class="sec-hdr">Global</div>
+      <div class="group">
+        <div class="slider-row">
+          <div class="lab"><span>Sharpness scale</span><b data-out>${ENGINE.sharpnessScale.toFixed(2)}</b></div>
+          <input type="range" min="0.5" max="1.5" step="0.01" value="${ENGINE.sharpnessScale}" />
+        </div>
+      </div>
+      <p class="footnote">Applied to every event at playback. Older Taptic hardware reads sharpness harder than the Pro line.</p>
+
+      <div class="sec-hdr">Hardware</div>
+      <div class="group">
+        <div class="row static"><div class="t"><b>Core Haptics</b></div><span class="pill-badge ok">SUPPORTED</span></div>
+        <div class="row static"><div class="t"><b>Audio-haptic playback</b></div><span class="pill-badge ok">SUPPORTED</span></div>
+        <div class="row static"><div class="t"><b>Device</b></div><span class="v mono">iPhone 15 Pro</span></div>
+      </div>
+      <p class="footnote">Haptic Lab 1.0 · Core Haptics + AVAudioSession</p>
+    </div></div>`);
+  v.querySelectorAll('.switch').forEach(s => s.onclick = () => {
+    ENGINE[s.dataset.t] = !ENGINE[s.dataset.t];
+    s.classList.toggle('on', ENGINE[s.dataset.t]);
+  });
+  wireSeg(v.querySelector('[data-seg]'), ENGINE.session, i => ENGINE.session = i);
+  const g = v.querySelector('input[type=range]'), out = v.querySelector('[data-out]');
+  g.oninput = () => { ENGINE.sharpnessScale = +g.value; out.textContent = (+g.value).toFixed(2); paintRange(g); };
+  requestAnimationFrame(() => paintRange(g));
+  return v;
+};
+const ROOTS = {patterns:patternsRoot, recipes:recipesRoot, engine:engineRoot};
+
+/* ==========================================================================
+   9. EDITOR — chainSection as a Canvas lane stack, inspector, transport
+   ========================================================================== */
+const PLAY_ICON = '<svg width="15" height="17" viewBox="0 0 15 17"><path d="M2 1.4 13.6 8.5 2 15.6z" fill="#000"/></svg>';
+const STOP_ICON = '<svg width="13" height="13" viewBox="0 0 13 13"><rect width="13" height="13" rx="2.4" fill="#fff"/></svg>';
+
+function openEditor(id){
+  editingId = id; sel = 0;
+  const p = byId(id);
+  const v = el(`<div>
+    <header class="nav">
+      <div class="nav-row">
+        <button class="nav-btn" data-back style="margin-left:-2px">${BACK}<span style="margin-left:2px">${tab === 'recipes' ? 'Recipes' : 'Patterns'}</span></button>
+        <div class="nav-title">${p.name}</div>
+        <span class="nav-spacer"></span>
+        <button class="nav-btn icon" data-menu>
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9.2" stroke="currentColor" stroke-width="1.7"/><circle cx="6.6" cy="11" r="1.35" fill="currentColor"/><circle cx="11" cy="11" r="1.35" fill="currentColor"/><circle cx="15.4" cy="11" r="1.35" fill="currentColor"/></svg>
+        </button>
+      </div>
+      <div class="large-title-wrap"><h1 class="large-title">${p.name}</h1></div>
+    </header>
+    <div class="scroll">
+      <div class="canvas-wrap">
+        <canvas class="lanes" data-lanes></canvas>
+        <div class="lane-key">
+          <span><i style="background:var(--tint)"></i>HAPTIC</span>
+          <span data-audiokey style="${p.audio.on ? '' : 'opacity:.35'}"><i style="background:var(--audio)"></i>AUDIO</span>
+          <span class="add" data-add>+ Event</span>
+        </div>
+      </div>
+      <div class="sec-hdr">Chain <span class="r" data-count></span></div>
+      <div class="group" data-chain></div>
+      <div data-inspector></div>
+    </div>
+    <div class="transport">
+      <button class="play" data-play>${PLAY_ICON}</button>
+      <div class="readout" data-readout></div>
+      <button class="tbtn" data-sound>
+        <svg width="22" height="20" viewBox="0 0 22 20" fill="none"><path d="M2 7h3.6L10 3v14L5.6 13H2z" fill="currentColor"/><path d="M14 6.5a5 5 0 0 1 0 7M17.4 4a8.6 8.6 0 0 1 0 12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+      <button class="tbtn" data-export>
+        <svg width="20" height="21" viewBox="0 0 20 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13.4V1.8M6 5.8 10 1.8l4 4"/><path d="M2.8 12v5.4a2 2 0 0 0 2 2h10.4a2 2 0 0 0 2-2V12"/></svg>
+      </button>
+    </div></div>`);
+
+  v.querySelector('[data-back]').onclick   = pop;
+  v.querySelector('[data-menu]').onclick   = () => patternMenu(p);
+  v.querySelector('[data-add]').onclick    = () => addEvent(p);
+  v.querySelector('[data-sound]').onclick  = () => soundSheet(p);
+  v.querySelector('[data-export]').onclick = () => exportSheet(p);
+  v.querySelector('[data-play]').onclick   = () => togglePlay(p);
+  v.querySelector('[data-lanes]').onclick  = e => {
+    const cv = e.currentTarget, r = resolve(p), rect = cv.getBoundingClientRect();
+    const span = Math.max(r.duration, .12);
+    const t = ((e.clientX - rect.left - 10) / (rect.width - 20)) * span;
+    let best = sel, bd = Infinity;
+    r.events.forEach(x => { const d = Math.abs(x.start - t); if (d < bd){ bd = d; best = x.src; } });
+    sel = best; refresh(p);
+  };
+  push(v);
+  requestAnimationFrame(() => refresh(p));
+}
+
+function readoutHTML(p, r){
+  const loopWarn = p.audio.on && p.audio.loop && r.duration > 0.8;
+  return `<b>${f2(r.duration)} s</b> · ${r.events.length}/${HL.maxEvents} ev` +
+    (r.burstHits ? ` · ${r.burstHits}/${HL.maxBurstHits} hits` : '') +
+    (r.truncated ? '<br><span class="warn">TRUNCATED — tail dropped</span>'
+      : loopWarn ? `<br><span class="warn">bed restarts ${Math.ceil(r.duration/0.8)}× per cycle</span>` : '');
+}
+
+function refresh(p){
+  const v = pushed; if (!v) return;
+  const r = drawLanes(v.querySelector('[data-lanes]'), p, null, sel);
+  v.querySelector('[data-audiokey]').style.opacity = p.audio.on ? '1' : '.35';
+  v.querySelector('[data-count]').textContent = `${r.events.length} RESOLVED`;
+  v.querySelector('[data-chain]').innerHTML = p.events.map((e,i) => {
+    const detail = e.type === 'transient' ? `i ${e.intensity.toFixed(2)} · s ${e.sharpness.toFixed(2)}`
+                 : e.type === 'continuous' ? `${f2(e.duration)} s · i ${e.intensity.toFixed(2)}`
+                 : `${f2(e.duration)} s @ ${e.burstStep.toFixed(3)} s`;
+    const hits = e.type === 'burst'
+      ? `<span class="pill-badge">${Math.min(HL.maxBurstHits, Math.ceil(HL.seconds(e.duration)/HL.step(e.burstStep)))} HITS</span>` : '';
+    return `<div class="row ${i === sel ? 'sel' : ''}" data-sel="${i}">
+      <div class="t"><b>${i+1}. ${TYPE_LABEL[e.type]}</b><small>${i === 0 ? 'starts at 0' : '+' + f2(e.gap) + ' s from prev start'} · ${detail}</small></div>
+      ${hits}${CHEV}</div>`;
+  }).join('');
+  v.querySelectorAll('[data-sel]').forEach(row => row.onclick = () => { sel = +row.dataset.sel; refresh(p); });
+  const insp = v.querySelector('[data-inspector]');
+  insp.innerHTML = inspectorHTML(p.events[sel], sel);
+  wireInspector(p, insp);
+  v.querySelector('[data-readout]').innerHTML = readoutHTML(p, r);
+}
+
+function inspectorHTML(e, i){
+  const S = (label, key, min, max, step, val, unit) => `
+    <div class="slider-row">
+      <div class="lab"><span>${label}</span><b data-out="${key}">${val.toFixed(step < .01 ? 3 : 2)}${unit || ''}</b></div>
+      <input type="range" min="${min}" max="${max}" step="${step}" value="${val}" data-k="${key}" data-u="${unit || ''}" />
+    </div>`;
+  let rows = '';
+  if (i > 0) rows += S('Gap from previous start','gap',0,2,0.01,e.gap,' s');
+  rows += S('Intensity','intensity',0,1,0.01,e.intensity,'');
+  rows += S('Sharpness','sharpness',0,1,0.01,e.sharpness,'');
+  if (e.type !== 'transient') rows += S('Duration','duration',0.05,3,0.01,e.duration,' s');
+  if (e.type === 'continuous'){
+    rows += S('Attack','attack',0,1,0.01,e.attack,'');
+    rows += S('Release','release',0,1,0.01,e.release,'');
+  }
+  if (e.type === 'burst') rows += S('Step','burstStep',0.01,0.5,0.001,e.burstStep,' s');
+  const cp = curvePoints(e.type === 'transient' ? 0 : e.duration);
+  return `<div class="sec-hdr">Event ${i+1} — ${TYPE_LABEL[e.type]}</div>
+    <div class="group">${rows}</div>
+    ${cp ? `<p class="footnote">Envelope control points ${cp.map(c => `(${f2(c[0])}, ${c[1].toFixed(1)})`).join(' ')}</p>` : ''}
+    <button class="cta plain" data-del style="color:var(--red);margin-top:18px">Delete Event</button>
+    <div style="height:12px"></div>`;
+}
+
+function wireInspector(p, root){
+  root.querySelectorAll('input[type=range]').forEach(inp => {
+    paintRange(inp);
+    inp.oninput = () => {
+      const k = inp.dataset.k, val = +inp.value;
+      p.events[sel][k] = val;
+      root.querySelector(`[data-out="${k}"]`).textContent = val.toFixed(+inp.step < .01 ? 3 : 2) + inp.dataset.u;
+      paintRange(inp);
+      /* redraw the lanes live, but leave the chain list alone mid-drag */
+      const v = pushed;
+      const r = drawLanes(v.querySelector('[data-lanes]'), p, null, sel);
+      v.querySelector('[data-count]').textContent = `${r.events.length} RESOLVED`;
+      v.querySelector('[data-readout]').innerHTML = readoutHTML(p, r);
+    };
+    inp.onchange = () => refresh(p);
+  });
+  const del = root.querySelector('[data-del]');
+  del.onclick = () => {
+    if (p.events.length <= 1) return;
+    stopPlay();                     /* stop playback before a structural edit */
+    p.events.splice(sel, 1);
+    sel = Math.max(0, sel - 1);
+    refresh(p);
+  };
+}
+
+function addEvent(p){
+  const body = openSheet('Add Event', `
+    <p class="footnote" style="padding-top:2px">Appended to the chain, 0.10 s after the previous event's start.</p>
+    <div class="group" style="margin-top:10px">
+      <div class="row" data-t="transient"><div class="t"><b>Transient</b><small>One impulse, 0.08 s tail</small></div>${CHEV}</div>
+      <div class="row" data-t="continuous"><div class="t"><b>Continuous</b><small>Held, with attack and release</small></div>${CHEV}</div>
+      <div class="row" data-t="burst"><div class="t"><b>Burst</b><small>Transient comb on a fixed step</small></div>${CHEV}</div>
+    </div><div style="height:16px"></div>`, {noDone:true});
+  body.querySelectorAll('[data-t]').forEach(r => r.onclick = () => {
+    stopPlay();                     /* stop playback before a structural edit */
+    const t = r.dataset.t;
+    p.events.push(ev({type:t, gap:.1,
+      intensity: t === 'burst' ? .5 : .8, sharpness:.5,
+      duration:  t === 'burst' ? .5 : .3, burstStep:.04}));
+    sel = p.events.length - 1;
+    closeSheet();
+    refresh(p);
+  });
+}
+
+function patternMenu(p){
+  openDialog([
+    {label:'Sound Layer…', run:() => soundSheet(p)},
+    {label:'Export…',      run:() => exportSheet(p)},
+    {label: p.verified ? 'Clear device flag' : 'Mark verified on device',
+     run:() => { p.verified = p.verified ? null : 'iPhone 15 Pro'; }},
+    {label:'Duplicate', run:() => {
+      const c = JSON.parse(JSON.stringify(p));
+      c.id = p.id + '-' + Date.now().toString(36).slice(-3);
+      c.name = p.name + ' Copy'; c.starter = false; c.verified = null;
+      PATTERNS.unshift(c);
+      tab = 'patterns'; render();
+    }},
+    {label:'Delete Pattern', danger:true, run:() => {
+      PATTERNS = PATTERNS.filter(x => x.id !== p.id);
+      tab = 'patterns'; render();
+    }},
+  ]);
+}
+
+/* ==========================================================================
+   10. SOUND SHEET — audioSection, opened from the lane that draws it
+   ========================================================================== */
+const FILES = ['alert-bed-low.caf','click-body.caf','grain-soft.caf'];
+const CHECK = '<svg width="15" height="12" viewBox="0 0 15 12" fill="none"><path d="M1.4 6.4 5.2 10.2 13.4 2" stroke="var(--tint)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function soundSheet(p){
+  const a = p.audio;
+  const body = openSheet('Sound Layer', `
+    <div class="group" style="margin-top:4px">
+      <div class="row static"><div class="t"><b>Audio layer</b><small>Played with the haptic chain</small></div>
+        <div class="switch ${a.on ? 'on' : ''}" data-t="on"><i></i></div></div>
+      <div class="row static"><div class="t"><b>Loop for the span</b><small>Restart the file until the chain ends</small></div>
+        <div class="switch ${a.loop ? 'on' : ''}" data-t="loop"><i></i></div></div>
+    </div>
+    <div class="sec-hdr">File</div>
+    <div class="group">${FILES.map(f => `<div class="row" data-f="${f}">
+      <div class="t"><b style="font-family:var(--mono);font-size:14px">${f}</b></div>
+      ${a.file === f ? CHECK : ''}</div>`).join('')}</div>
+    <div class="sec-hdr">Level</div>
+    <div class="group">
+      <div class="slider-row">
+        <div class="lab"><span>Gain</span><b data-out style="color:var(--audio)">${a.gain.toFixed(2)}</b></div>
+        <input type="range" class="audio" min="0" max="1" step="0.01" value="${a.gain}" />
+      </div>
+    </div>
+    <p class="footnote">Starter set — source not yet chosen. CC0 required; licence and author recorded per file. Audio is a texture lever, not a strength lever: it will not make a weak pattern feel stronger.</p>
+    <div style="height:20px"></div>`, {noDone:false, onDone:() => refresh(p)});
+
+  body.querySelectorAll('.switch').forEach(s => s.onclick = () => {
+    a[s.dataset.t] = !a[s.dataset.t];
+    s.classList.toggle('on', a[s.dataset.t]);
+    refresh(p);
+  });
+  body.querySelectorAll('[data-f]').forEach(r => r.onclick = () => { a.file = r.dataset.f; soundSheet(p); });
+  const g = body.querySelector('input[type=range]'), out = body.querySelector('[data-out]');
+  paintRange(g);
+  g.oninput = () => { a.gain = +g.value; out.textContent = a.gain.toFixed(2); paintRange(g); refresh(p); };
+}
+
+/* ==========================================================================
+   11. EXPORT SHEET — readoutSection as the payoff
+   ========================================================================== */
+function ahap(p){
+  const r = resolve(p);
+  const shown = r.events.slice(0, 5).map(e => e.dur == null
+    ? `    { "Event": { "Time": ${e.start.toFixed(3)}, "EventType": "HapticTransient",\n      "EventParameters": [\n        { "ParameterID": "HapticIntensity", "ParameterValue": ${e.intensity.toFixed(2)} },\n        { "ParameterID": "HapticSharpness", "ParameterValue": ${e.sharpness.toFixed(2)} } ] } }`
+    : `    { "Event": { "Time": ${e.start.toFixed(3)}, "EventType": "HapticContinuous", "EventDuration": ${e.dur.toFixed(3)},\n      "EventParameters": [\n        { "ParameterID": "HapticIntensity", "ParameterValue": ${e.intensity.toFixed(2)} },\n        { "ParameterID": "HapticSharpness", "ParameterValue": ${e.sharpness.toFixed(2)} } ] } }`
+  ).join(',\n');
+  const more = r.events.length > 5 ? `,\n    <span class="c">// ${r.events.length - 5} more resolved events</span>` : '';
+  const audio = p.audio.on
+    ? `,\n    { "Event": { "Time": 0.000, "EventType": "AudioCustom",\n      "EventWaveformPath": "${p.audio.file}",\n      "EventParameters": [ { "ParameterID": "AudioVolume", "ParameterValue": ${p.audio.gain.toFixed(2)} } ] } }`
+    : '';
+  return `{\n  <span class="s">"Version"</span>: <span class="n">1</span>,\n  <span class="s">"Metadata"</span>: { <span class="s">"Project"</span>: <span class="s">"${p.name}"</span> },\n  <span class="s">"Pattern"</span>: [\n${evEscape(shown)}${more}${evEscape(audio)}\n  ]\n}`;
+}
+const evEscape = s => s.replace(/"([A-Za-z]+)":/g, '<span class="s">"$1"</span>:');
+
+function swiftOut(p){
+  const r = resolve(p);
+  const body = p.events.map(e => e.type === 'transient'
+    ? `      .transient(gap: ${e.gap.toFixed(2)}, intensity: ${e.intensity.toFixed(2)}, sharpness: ${e.sharpness.toFixed(2)})`
+    : e.type === 'continuous'
+    ? `      .continuous(gap: ${e.gap.toFixed(2)}, duration: ${e.duration.toFixed(2)}, intensity: ${e.intensity.toFixed(2)},\n                  sharpness: ${e.sharpness.toFixed(2)}, attack: ${e.attack.toFixed(2)}, release: ${e.release.toFixed(2)})`
+    : `      .burst(gap: ${e.gap.toFixed(2)}, duration: ${e.duration.toFixed(2)}, step: ${e.burstStep.toFixed(3)},\n             intensity: ${e.intensity.toFixed(2)}, sharpness: ${e.sharpness.toFixed(2)})`
+  ).join(',\n');
+  const audio = p.audio.on
+    ? `,\n    audio: .init(file: <span class="s">"${p.audio.file}"</span>, gain: ${p.audio.gain.toFixed(2)}, loops: ${p.audio.loop})` : '';
+  const name = p.id.replace(/[^a-z0-9]/gi, '_');
+  return `<span class="k">import</span> CoreHaptics\n\n<span class="k">extension</span> HapticPattern {\n  <span class="c">/// ${p.name} — ${p.events.length} authored, ${r.events.length} resolved, ${f2(r.duration)} s</span>\n  <span class="k">static let</span> ${name} = HapticPattern(\n    events: [\n${body}\n    ]${audio}\n  )\n}`;
+}
+
+function exportSheet(p){
+  const r = resolve(p);
+  const rows = [
+    ['Span', f2(r.duration) + ' s'],
+    ['Resolved events', `${r.events.length} / ${HL.maxEvents}`],
+    ['Burst hits', r.burstHits ? `${r.burstHits} / ${HL.maxBurstHits}` : '—'],
+    ['Audio layer', p.audio.on ? p.audio.file : 'off'],
+    ['Verified on device', p.verified || 'not yet'],
+  ];
+  const loopWarn = p.audio.on && p.audio.loop && r.duration > 0.8;
+  const body = openSheet('Export', `
+    <div class="seg" data-seg style="margin-top:6px"><div class="pill"></div>
+      <button class="on">AHAP</button><button>Swift</button></div>
+    <div class="sec-hdr">Validation</div>
+    <div class="group">${rows.map(([k,val]) =>
+      `<div class="row static"><div class="t"><b>${k}</b></div><span class="v mono">${val}</span></div>`).join('')}</div>
+    ${r.truncated ? '<p class="footnote" style="color:var(--tint)">Truncated at an engine ceiling. The tail of this chain will not play.</p>' : ''}
+    ${loopWarn ? `<p class="footnote" style="color:var(--tint)">A ${f2(r.duration)} s span restarts the audio bed ${Math.ceil(r.duration/0.8)} times. Audible seams unless the file is trimmed to the span.</p>` : ''}
+    ${!p.verified ? '<p class="footnote">Not yet played on hardware. The Simulator draws this correctly and still cannot tell you how it feels.</p>' : ''}
+    <div class="sec-hdr">Output</div>
+    <div class="code" data-out>${ahap(p)}</div>
+    <button class="cta" data-copy>Copy AHAP</button>
+    <div style="height:22px"></div>`, {noCancel:true});
+
+  let fmt = 0;
+  const out = body.querySelector('[data-out]'), copy = body.querySelector('[data-copy]');
+  wireSeg(body.querySelector('[data-seg]'), 0, i => {
+    fmt = i;
+    out.innerHTML = i === 0 ? ahap(p) : swiftOut(p);
+    copy.textContent = 'Copy ' + (i === 0 ? 'AHAP' : 'Swift');
+  });
+  copy.onclick = () => {
+    try { navigator.clipboard.writeText(out.textContent); } catch (_){}
+    copy.textContent = 'Copied';
+    setTimeout(() => copy.textContent = 'Copy ' + (fmt === 0 ? 'AHAP' : 'Swift'), 1400);
+  };
+}
+
+/* ==========================================================================
+   12. PLAYBACK
+   ========================================================================== */
+let playRAF = null, playStart = 0;
+function togglePlay(p){ playRAF ? stopPlay() : startPlay(p); }
+function startPlay(p){
+  const v = pushed; if (!v) return;
+  const r = resolve(p), span = Math.max(r.duration, .12);
+  const btn = v.querySelector('[data-play]'), cv = v.querySelector('[data-lanes]');
+  playStart = performance.now();
+  btn.classList.add('playing'); btn.innerHTML = STOP_ICON;
+  /* real hardware gets a real buzz; everywhere else this is a no-op */
+  if (navigator.vibrate){
+    try { navigator.vibrate(r.events.slice(0,80).flatMap((e,i,a) =>
+      [Math.max(0, Math.round(((a[i].start - (i ? a[i-1].start : 0))) * 1000)), 10])); } catch (_){}
+  }
+  const tick = () => {
+    const t = (performance.now() - playStart) / 1000;
+    if (t > span + .12){ stopPlay(); return; }
+    drawLanes(cv, p, t, sel);
+    playRAF = requestAnimationFrame(tick);
+  };
+  playRAF = requestAnimationFrame(tick);
+}
+function stopPlay(){
+  if (!playRAF) return;
+  cancelAnimationFrame(playRAF);
+  playRAF = null;
+  if (navigator.vibrate) try { navigator.vibrate(0); } catch (_){}
+  const v = pushed; if (!v) return;
+  const btn = v.querySelector('[data-play]');
+  if (btn){ btn.classList.remove('playing'); btn.innerHTML = PLAY_ICON; }
+  const p = byId(editingId);
+  if (p) drawLanes(v.querySelector('[data-lanes]'), p, null, sel);
+}
+
+/* ==========================================================================
+   13. BOOT
+   ========================================================================== */
+render();
+</script>
+</body>
+</html>
