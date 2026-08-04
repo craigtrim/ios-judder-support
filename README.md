@@ -6,20 +6,21 @@ no dependencies.
 | Path | Serves | What it is |
 | --- | --- | --- |
 | `html/index.html` | `/` | The landing page. Explains the app, cites its sources, and embeds a live copy of the web prototype. |
-| `html/support.html` | `/support.html` | Support and privacy, with the privacy section anchored at `#privacy`. |
+| `html/support.html` | `/support.html` | Common questions, requirements, and the contact address. |
+| `html/privacy.html` | `/privacy.html` | The privacy policy. |
 | `html/app/index.html` | `/app/index.html` | The web prototype of the editor, loaded by the landing page in an iframe. Not linked directly. |
 
-The support page exists because the App Store requires a reachable Support URL and a Privacy
-Policy URL, and because two questions account for nearly all of Judder's support load. Both are
-answered on the page rather than by email: the Simulator has no Taptic Engine, and iOS silences
-every app's haptics when Settings, Accessibility, Touch, Vibration is off.
+The support and privacy pages exist because the App Store requires a reachable Support URL and a
+Privacy Policy URL. Two questions account for nearly all of Judder's support load, and both are
+answered on the support page rather than by email: the Simulator has no Taptic Engine, and iOS
+silences every app's haptics when Settings, Accessibility, Touch, Vibration is off.
 
 ## What goes in App Store Connect
 
 | Field | Value |
 | --- | --- |
 | Support URL | `https://judder-haptics.com/support.html` |
-| Privacy Policy URL | `https://judder-haptics.com/support.html#privacy` |
+| Privacy Policy URL | `https://judder-haptics.com/privacy.html` |
 | Marketing URL | `https://judder-haptics.com/` |
 
 All three can be changed at any time without shipping a new build.
@@ -50,11 +51,19 @@ is not affected by any of this.
 
 ## Editing
 
-Both pages are self-contained: the CSS is inline and there are no fonts, scripts or images to
-fetch. `html/index.html` renders dark and carries its own resolver in inline JavaScript, mirroring
-`HapticTimeline.resolve` so the numbers on the page match the app. `html/support.html` follows the
-reader's system setting for light or dark. Open either in a browser to check a change, since there
-is nothing to compile.
+Every page is self-contained: the CSS is inline and there are no fonts, scripts or images to
+fetch. All three share one palette, taken from the app itself. Amber is haptic energy, blue is the
+audio bed, and everything else is an iOS dark system surface. A third accent colour is a
+regression. `html/index.html` also carries its own resolver in inline JavaScript, mirroring
+`HapticTimeline.resolve` so the numbers on the page match the app.
+
+The sub-pages duplicate the shared tokens and the nav rather than importing them, which keeps each
+file openable on its own with no build step. Changing the palette means changing it in three
+places.
+
+One layout trap is worth knowing before editing the bullet lists. Each row is a flex box holding
+exactly two children, the bullet and one `<span>`. Putting bare text next to a `<b>` inside the row
+makes each text node its own anonymous box, and the row gap then pushes the words apart.
 
 To preview the site the way it will actually be served, run a static server from `html/` instead
 of opening the files directly, because the landing page loads the prototype from a relative path:

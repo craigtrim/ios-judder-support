@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Judder · Privacy Policy</title>
+<meta name="description" content="Privacy policy for Judder, a native iOS app for designing Core Haptics patterns. Judder collects no data, contains no networking code, and requests no permissions." />
+<style>
+/* ============================================================
+   Judder · judder-haptics.com
+   Same palette as the landing page: iOS dark system surfaces,
+   exactly two semantic colors. Amber is haptic energy. Blue is
+   the audio bed. Nothing else is tinted.
+   ============================================================ */
+:root{
+  --bg:        #000000;
+  --surface:   #1C1C1E;
+  --surface-2: #2C2C2E;
+  --hairline:  rgba(84,84,88,0.60);
+  --fg:        #FFFFFF;
+  --fg-2:      rgba(235,235,245,0.62);
+  --fg-3:      rgba(235,235,245,0.34);
+  --amber:     #FF9F0A;
+  --amber-dim: rgba(255,159,10,0.16);
+  --blue:      #0A84FF;
+  --ink:       #0C0C0E;
+
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+
+  --pad: clamp(20px, 5vw, 56px);
+  --max: 1140px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+section[id]{scroll-margin-top:76px}
+body{
+  background:var(--bg);color:var(--fg);
+  font-family:var(--sans);
+  font-size:17px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 var(--pad)}
+.eyebrow{
+  font-family:var(--mono);font-size:11px;letter-spacing:.20em;
+  text-transform:uppercase;color:var(--fg-3);
+}
+
+/* ---------- nav ---------- */
+nav{
+  position:sticky;top:0;z-index:60;
+  background:rgba(0,0,0,0.72);
+  backdrop-filter:saturate(180%) blur(20px);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid rgba(84,84,88,0.35);
+}
+.nav-in{
+  max-width:var(--max);margin:0 auto;padding:0 var(--pad);
+  height:56px;display:flex;align-items:center;gap:28px;
+}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em}
+.brand svg{border-radius:22%;display:block}
+.nav-links{display:flex;gap:24px;margin-left:auto;font-size:14px;color:var(--fg-2)}
+.nav-links a:hover{color:var(--fg)}
+.nav-links a[aria-current]{color:var(--fg)}
+@media (max-width:760px){.nav-links{display:none}}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  height:38px;padding:0 18px;border-radius:999px;
+  font-size:14px;font-weight:590;letter-spacing:-.01em;
+  border:1px solid transparent;cursor:pointer;
+  transition:transform .12s ease, background .15s ease, border-color .15s ease;
+}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--amber);color:#150C00}
+.btn-primary:hover{background:#FFB23A}
+.nav-in .btn{margin-left:auto}
+@media (min-width:761px){.nav-in .btn{margin-left:0}}
+
+/* ---------- page head ---------- */
+header{padding:clamp(48px,8vw,92px) 0 0}
+h1{
+  margin-top:14px;
+  font-size:clamp(36px,5.6vw,62px);
+  line-height:1.02;letter-spacing:-0.032em;font-weight:660;
+  text-wrap:balance;max-width:16ch;
+}
+.lede{
+  margin-top:20px;max-width:56ch;font-size:clamp(17px,2vw,20px);
+  color:var(--fg-2);line-height:1.5;text-wrap:pretty;
+}
+.updated{
+  margin-top:18px;font-family:var(--mono);font-size:12px;
+  letter-spacing:.10em;text-transform:uppercase;color:var(--fg-3);
+}
+
+/* ---------- headline claim ---------- */
+.claim{
+  margin-top:clamp(40px,6vw,64px);
+  background:var(--ink);border:1px solid var(--hairline);
+  border-left:3px solid var(--amber);border-radius:14px;
+  padding:26px 26px 28px;max-width:74ch;
+}
+.claim h2{font-size:clamp(22px,2.8vw,30px);letter-spacing:-.026em;font-weight:640;max-width:36ch}
+.claim p{margin-top:14px;color:var(--fg-2);font-size:16px;text-wrap:pretty}
+.claim p b{color:var(--fg);font-weight:590}
+
+/* ---------- body ---------- */
+section{padding:clamp(44px,6vw,76px) 0 0}
+section:last-of-type{padding-bottom:clamp(56px,8vw,104px)}
+h2{
+  font-size:clamp(24px,3.2vw,36px);line-height:1.08;
+  letter-spacing:-0.028em;font-weight:640;max-width:22ch;text-wrap:balance;
+}
+.prose{max-width:68ch}
+.prose p{margin-top:16px;color:var(--fg-2);text-wrap:pretty}
+.prose b,.prose strong{color:var(--fg);font-weight:590}
+.prose a{color:var(--blue);border-bottom:1px solid rgba(10,132,255,0.35)}
+.prose a:hover{border-bottom-color:var(--blue)}
+
+/* ---------- fact rows ---------- */
+.facts{margin-top:26px;max-width:70ch}
+/* Each row is exactly two boxes: the bullet and one span holding all the text. Leaving the text
+   bare put every node beside the <b> into its own anonymous box, which the gap then pushed apart. */
+.facts li{
+  list-style:none;display:flex;align-items:flex-start;gap:12px;
+  padding:14px 0;border-top:1px solid var(--hairline);
+}
+.facts li::before{
+  content:"";flex:0 0 auto;width:7px;height:7px;margin-top:9px;border-radius:2px;
+  background:var(--amber);
+}
+.facts li span{color:var(--fg-2);font-size:15.5px;text-wrap:pretty}
+.facts li b{color:var(--fg);font-weight:590}
+
+/* ---------- contact card ---------- */
+.contact{
+  margin-top:26px;padding:24px 24px 26px;max-width:70ch;
+  background:var(--ink);border:1px solid var(--hairline);border-radius:14px;
+}
+.contact .addr{
+  display:inline-block;margin-top:6px;
+  font-family:var(--mono);font-size:17px;letter-spacing:-.01em;
+  color:var(--amber);border-bottom:1px solid var(--amber-dim);
+}
+.contact .addr:hover{border-bottom-color:var(--amber)}
+
+/* ---------- footer ---------- */
+footer{padding:0 0 60px;margin-top:clamp(56px,8vw,96px)}
+.foot-in{
+  display:flex;gap:20px;flex-wrap:wrap;align-items:center;
+  padding-top:26px;border-top:1px solid var(--hairline);
+  font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--fg-3);
+}
+.foot-in a:hover{color:var(--fg)}
+.foot-in .sp{margin-left:auto}
+</style>
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<nav>
+  <div class="nav-in">
+    <a class="brand" href="./">
+      <svg width="26" height="26" viewBox="0 0 1024 1024" aria-hidden="true">
+        <rect width="1024" height="1024" rx="230" fill="#FF9F0A"/>
+        <g fill="#0C0C0E">
+          <rect x="301" y="300" width="132" height="440" rx="12"/>
+          <rect x="487" y="454" width="44" height="286" rx="10"/>
+          <rect x="583" y="554" width="44" height="186" rx="10"/>
+          <rect x="679" y="622" width="44" height="118" rx="10"/>
+        </g>
+      </svg>
+      Judder
+    </a>
+    <div class="nav-links">
+      <a href="./#timeline">Timeline</a>
+      <a href="./#export">Export</a>
+      <a href="./#provenance">Sources</a>
+      <a href="support.html">Support</a>
+      <a href="privacy.html" aria-current="page">Privacy</a>
+    </div>
+    <a class="btn btn-primary" href="./#get">Download on the App Store</a>
+  </div>
+</nav>
+
+<!-- ============ HEAD ============ -->
+<header>
+  <div class="wrap">
+    <p class="eyebrow">Privacy Policy</p>
+    <h1>Judder collects no data.</h1>
+    <p class="lede">Not a reassurance about how carefully data is handled. There is no data,
+    because there is nothing in the app capable of sending any.</p>
+    <p class="updated">Judder for iPhone &middot; Last updated 4 August 2026</p>
+
+    <div class="claim">
+      <h2>No collection, no transmission, no third parties</h2>
+      <p>Judder does not collect, transmit, or share any information about you or your use of the
+      app. There is no account to create, no analytics, no crash reporting, no advertising, and no
+      third-party SDK of any kind.</p>
+      <p><b>The app contains no networking code.</b> It cannot send anything anywhere, because
+      nothing in it is capable of making a network request.</p>
+    </div>
+  </div>
+</header>
+
+<!-- ============ STORAGE ============ -->
+<section id="storage">
+  <div class="wrap">
+    <h2>What is stored, and where</h2>
+    <div class="prose">
+      <p>The haptic patterns you author and your engine settings are saved on your device, inside
+      Judder's own private app container. That storage is:</p>
+    </div>
+    <ul class="facts">
+      <li><span><b>Readable only by Judder</b>, and by you through the Files app</span></li>
+      <li><span><b>Never uploaded, synced, or backed up</b> to any server operated by the developer</span></li>
+      <li><span><b>Removed completely</b> when you delete the app</span></li>
+    </ul>
+    <div class="prose">
+      <p>If your device backs up to iCloud or to a computer, that backup is handled by Apple under
+      Apple's terms rather than by Judder.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ EXPORT ============ -->
+<section id="export">
+  <div class="wrap">
+    <h2>When you export a pattern</h2>
+    <div class="prose">
+      <p>Exporting produces an AHAP file or a Swift snippet. Where it goes next is entirely your
+      choice, made through the standard iOS share sheet. Judder has no destination of its own and
+      receives no copy.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PERMISSIONS ============ -->
+<section id="permissions">
+  <div class="wrap">
+    <h2>Permissions</h2>
+    <div class="prose">
+      <p>Judder requests no permissions. It does not access your camera, microphone, photos,
+      contacts, location, or health data. It plays haptics and audio, and nothing else.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHILDREN ============ -->
+<section id="children">
+  <div class="wrap">
+    <h2>Children</h2>
+    <div class="prose">
+      <p>Judder is a developer tool rated 4+. Because it collects nothing from anyone, it collects
+      nothing from children.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHANGES ============ -->
+<section id="changes">
+  <div class="wrap">
+    <h2>Changes</h2>
+    <div class="prose">
+      <p>If this policy ever changes, the revised version will be posted at this address with a new
+      date above. Judder collecting no data is a property of how the app is built, so any change
+      here would follow a change in the app itself.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONTACT ============ -->
+<section id="contact">
+  <div class="wrap">
+    <h2>Contact</h2>
+    <div class="contact">
+      <p class="eyebrow">Questions about this policy</p>
+      <a class="addr" href="mailto:support@judder-haptics.com">support@judder-haptics.com</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-in">
+      <span><a href="./">Judder</a></span>
+      <span>judder-haptics.com</span>
+      <span>iOS 17 and later</span>
+      <span><a href="support.html">Support</a></span>
+      <span class="sp">Copyright 2026 Craig Trim</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

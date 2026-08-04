@@ -1,137 +1,334 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Judder Support</title>
-<meta name="description" content="Support and privacy information for Judder, a haptic pattern editor for iPhone.">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Judder · Support</title>
+<meta name="description" content="Support for Judder, a native iOS app for designing, chaining and exporting Core Haptics patterns. Common questions, requirements, and how to get in touch." />
 <style>
-  :root {
-    --bg: #ffffff;
-    --fg: #1a1a1a;
-    --muted: #5c5c5c;
-    --rule: #e2e2e2;
-    --accent: #b35c00;
-    --card: #f7f7f7;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0e0e10;
-      --fg: #ededed;
-      --muted: #9a9a9a;
-      --rule: #2a2a2e;
-      --accent: #ff9f0a;
-      --card: #17171a;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    padding: 2.5rem 1.25rem 5rem;
-    background: var(--bg);
-    color: var(--fg);
-    font: 17px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    -webkit-text-size-adjust: 100%;
-  }
-  main { max-width: 42rem; margin: 0 auto; }
-  h1 {
-    font-size: 2rem;
-    line-height: 1.15;
-    margin: 0 0 .35rem;
-    letter-spacing: -0.02em;
-  }
-  .tagline { color: var(--muted); margin: 0 0 2.5rem; }
-  h2 {
-    font-size: 1.15rem;
-    margin: 2.75rem 0 .75rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--rule);
-    letter-spacing: -0.01em;
-  }
-  h3 { font-size: 1rem; margin: 1.75rem 0 .4rem; }
-  p { margin: 0 0 1rem; }
-  a { color: var(--accent); }
-  code, kbd {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: .9em;
-    background: var(--card);
-    padding: .12em .4em;
-    border-radius: 4px;
-  }
-  .path {
-    display: block;
-    background: var(--card);
-    border-left: 3px solid var(--accent);
-    padding: .8rem 1rem;
-    margin: 0 0 1rem;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: .92rem;
-    overflow-x: auto;
-    white-space: nowrap;
-  }
-  footer {
-    margin-top: 3.5rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--rule);
-    color: var(--muted);
-    font-size: .9rem;
-  }
+/* ============================================================
+   Judder · judder-haptics.com
+   Same palette as the landing page: iOS dark system surfaces,
+   exactly two semantic colors. Amber is haptic energy. Blue is
+   the audio bed. Nothing else is tinted.
+   ============================================================ */
+:root{
+  --bg:        #000000;
+  --surface:   #1C1C1E;
+  --surface-2: #2C2C2E;
+  --hairline:  rgba(84,84,88,0.60);
+  --fg:        #FFFFFF;
+  --fg-2:      rgba(235,235,245,0.62);
+  --fg-3:      rgba(235,235,245,0.34);
+  --amber:     #FF9F0A;
+  --amber-dim: rgba(255,159,10,0.16);
+  --blue:      #0A84FF;
+  --ink:       #0C0C0E;
+
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+
+  --pad: clamp(20px, 5vw, 56px);
+  --max: 1140px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+section[id]{scroll-margin-top:76px}
+body{
+  background:var(--bg);color:var(--fg);
+  font-family:var(--sans);
+  font-size:17px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 var(--pad)}
+.eyebrow{
+  font-family:var(--mono);font-size:11px;letter-spacing:.20em;
+  text-transform:uppercase;color:var(--fg-3);
+}
+
+/* ---------- nav ---------- */
+nav{
+  position:sticky;top:0;z-index:60;
+  background:rgba(0,0,0,0.72);
+  backdrop-filter:saturate(180%) blur(20px);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid rgba(84,84,88,0.35);
+}
+.nav-in{
+  max-width:var(--max);margin:0 auto;padding:0 var(--pad);
+  height:56px;display:flex;align-items:center;gap:28px;
+}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em}
+.brand svg{border-radius:22%;display:block}
+.nav-links{display:flex;gap:24px;margin-left:auto;font-size:14px;color:var(--fg-2)}
+.nav-links a:hover{color:var(--fg)}
+.nav-links a[aria-current]{color:var(--fg)}
+@media (max-width:760px){.nav-links{display:none}}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  height:38px;padding:0 18px;border-radius:999px;
+  font-size:14px;font-weight:590;letter-spacing:-.01em;
+  border:1px solid transparent;cursor:pointer;
+  transition:transform .12s ease, background .15s ease, border-color .15s ease;
+}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--amber);color:#150C00}
+.btn-primary:hover{background:#FFB23A}
+.nav-in .btn{margin-left:auto}
+@media (min-width:761px){.nav-in .btn{margin-left:0}}
+
+/* ---------- page head ---------- */
+header{padding:clamp(48px,8vw,92px) 0 0}
+h1{
+  margin-top:14px;
+  font-size:clamp(36px,5.6vw,62px);
+  line-height:1.02;letter-spacing:-0.032em;font-weight:660;
+  text-wrap:balance;max-width:18ch;
+}
+.lede{
+  margin-top:20px;max-width:56ch;font-size:clamp(17px,2vw,20px);
+  color:var(--fg-2);line-height:1.5;text-wrap:pretty;
+}
+
+/* ---------- body ---------- */
+section{padding:clamp(48px,7vw,88px) 0 0}
+section:last-of-type{padding-bottom:clamp(56px,8vw,104px)}
+h2{
+  font-size:clamp(24px,3.2vw,36px);line-height:1.08;
+  letter-spacing:-0.028em;font-weight:640;max-width:22ch;text-wrap:balance;
+}
+.sec-lede{margin-top:16px;max-width:62ch;color:var(--fg-2);text-wrap:pretty}
+.prose{max-width:66ch}
+.prose p{margin-top:14px;color:var(--fg-2);text-wrap:pretty}
+.prose p:first-child{margin-top:16px}
+.prose b,.prose strong{color:var(--fg);font-weight:590}
+.prose a{color:var(--blue);border-bottom:1px solid rgba(10,132,255,0.35)}
+.prose a:hover{border-bottom-color:var(--blue)}
+code{
+  font-family:var(--mono);font-size:.88em;
+  background:var(--surface);border:1px solid var(--hairline);
+  padding:.1em .42em;border-radius:5px;color:var(--fg);
+}
+
+/* ---------- question list ---------- */
+.qa{margin-top:40px;border-top:1px solid var(--hairline)}
+.qa .item{
+  display:grid;grid-template-columns:34px 1fr;gap:0 14px;
+  padding:26px 0;border-bottom:1px solid var(--hairline);
+}
+.qa .n{font-family:var(--mono);font-size:12px;color:var(--amber);letter-spacing:.06em;padding-top:4px}
+.qa h3{font-size:19px;font-weight:600;letter-spacing:-.016em;max-width:44ch;text-wrap:balance}
+.qa p{margin-top:10px;color:var(--fg-2);font-size:15.5px;max-width:68ch;text-wrap:pretty}
+.qa p b,.qa p strong{color:var(--fg);font-weight:590}
+.qa a{color:var(--blue);border-bottom:1px solid rgba(10,132,255,0.35)}
+.qa a:hover{border-bottom-color:var(--blue)}
+@media (max-width:600px){
+  .qa .item{grid-template-columns:1fr;gap:6px}
+  .qa .n{padding-top:0}
+}
+
+/* ---------- the settings path ---------- */
+.path{
+  display:block;margin-top:14px;
+  background:var(--ink);border:1px solid var(--hairline);
+  border-left:3px solid var(--amber);border-radius:10px;
+  padding:14px 16px;
+  font-family:var(--mono);font-size:13.5px;letter-spacing:.02em;
+  color:var(--fg);overflow-x:auto;white-space:nowrap;
+}
+
+/* ---------- requirement rows ---------- */
+/* Two boxes per row, the bullet and one span. Bare text beside a <b> would each become its own
+   anonymous box and the gap would push them apart. */
+.reqs{margin-top:34px;max-width:70ch}
+.reqs li{
+  list-style:none;display:flex;align-items:flex-start;gap:12px;
+  padding:16px 0;border-top:1px solid var(--hairline);
+}
+.reqs li::before{
+  content:"";flex:0 0 auto;width:7px;height:7px;margin-top:9px;border-radius:2px;
+  background:var(--amber);
+}
+.reqs li span{color:var(--fg-2);font-size:15.5px;text-wrap:pretty}
+.reqs li b{color:var(--fg);font-weight:590}
+
+/* ---------- contact card ---------- */
+.contact{
+  margin-top:34px;padding:24px 24px 26px;max-width:70ch;
+  background:var(--ink);border:1px solid var(--hairline);border-radius:14px;
+}
+.contact .addr{
+  display:inline-block;margin-top:6px;
+  font-family:var(--mono);font-size:17px;letter-spacing:-.01em;
+  color:var(--amber);border-bottom:1px solid var(--amber-dim);
+}
+.contact .addr:hover{border-bottom-color:var(--amber)}
+.contact p{margin-top:14px;color:var(--fg-2);font-size:15.5px;text-wrap:pretty}
+
+/* ---------- footer ---------- */
+footer{padding:0 0 60px;margin-top:clamp(56px,8vw,96px)}
+.foot-in{
+  display:flex;gap:20px;flex-wrap:wrap;align-items:center;
+  padding-top:26px;border-top:1px solid var(--hairline);
+  font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--fg-3);
+}
+.foot-in a:hover{color:var(--fg)}
+.foot-in .sp{margin-left:auto}
 </style>
 </head>
 <body>
-<main>
 
-  <h1>Judder</h1>
-  <p class="tagline">A haptic pattern editor for iPhone. Support and privacy.</p>
+<!-- ============ NAV ============ -->
+<nav>
+  <div class="nav-in">
+    <a class="brand" href="./">
+      <svg width="26" height="26" viewBox="0 0 1024 1024" aria-hidden="true">
+        <rect width="1024" height="1024" rx="230" fill="#FF9F0A"/>
+        <g fill="#0C0C0E">
+          <rect x="301" y="300" width="132" height="440" rx="12"/>
+          <rect x="487" y="454" width="44" height="286" rx="10"/>
+          <rect x="583" y="554" width="44" height="186" rx="10"/>
+          <rect x="679" y="622" width="44" height="118" rx="10"/>
+        </g>
+      </svg>
+      Judder
+    </a>
+    <div class="nav-links">
+      <a href="./#timeline">Timeline</a>
+      <a href="./#export">Export</a>
+      <a href="./#provenance">Sources</a>
+      <a href="support.html" aria-current="page">Support</a>
+      <a href="privacy.html">Privacy</a>
+    </div>
+    <a class="btn btn-primary" href="./#get">Download on the App Store</a>
+  </div>
+</nav>
 
-  <p>You build a chain of events on one timeline, play it on the device in your hand,
-  then take it away as AHAP or as paste-ready Swift.</p>
+<!-- ============ HEAD ============ -->
+<header>
+  <div class="wrap">
+    <p class="eyebrow">Support</p>
+    <h1>Nothing to configure. A few things to check.</h1>
+    <p class="lede">Judder has no account, no server and no settings that can get into a bad
+    state. Almost everything that goes wrong is one of the questions below, and the first one
+    accounts for most of them.</p>
+  </div>
+</header>
 
-  <h2 id="no-haptics">Nothing happens when I press play</h2>
+<!-- ============ QUESTIONS ============ -->
+<section id="questions">
+  <div class="wrap">
+    <h2>Common questions</h2>
 
-  <p>Two things cause this, and neither is a fault in the app.</p>
+    <div class="qa">
+      <div class="item" id="q-nothing">
+        <div class="n">01</div>
+        <div>
+          <h3>I feel nothing when I press play</h3>
+          <p>Check that system vibration is on. When it is off, iOS silences haptic output for
+          every app on the phone, and there is no API for an app to read the setting, so Judder
+          cannot detect it or warn you. This is the single most common cause.</p>
+          <span class="path">Settings &rsaquo; Accessibility &rsaquo; Touch &rsaquo; Vibration</span>
+          <p>Then open the <b>Engine</b> tab. The Hardware section reports whether Core Haptics is
+          supported. If it reads UNSUPPORTED on a physical iPhone, haptics are unavailable to every
+          app rather than to this one.</p>
+        </div>
+      </div>
 
-  <h3>You are running on the Simulator</h3>
-  <p>The iOS Simulator has no Taptic Engine. It draws every timeline correctly and plays
-  the audio layer, but it cannot produce haptic output at all. Judder reports this in the
-  Engine tab, under Hardware, where Core Haptics reads as unsupported. Run on a real iPhone.</p>
+      <div class="item" id="q-simulator">
+        <div class="n">02</div>
+        <div>
+          <h3>Nothing buzzes in the iOS Simulator</h3>
+          <p>Expected. The Simulator has no Taptic Engine. Judder draws every timeline correctly
+          there and plays the audio layer, but haptic output needs physical hardware. Use a real
+          iPhone.</p>
+        </div>
+      </div>
 
-  <h3>System vibration is switched off</h3>
-  <p>Check this path on the device:</p>
-  <span class="path">Settings &rsaquo; Accessibility &rsaquo; Touch &rsaquo; Vibration</span>
-  <p>When that switch is off, iOS silences haptics for every app on the phone, including
-  Judder. There is no API to read the setting, so no app can detect it or warn you about it.</p>
+      <div class="item" id="q-storage">
+        <div class="n">03</div>
+        <div>
+          <h3>Where do my patterns go when I quit?</h3>
+          <p>They save automatically to the app's own storage and are there when you come back.
+          Deleting the app removes them, so export anything you want to keep.</p>
+        </div>
+      </div>
 
-  <h2 id="requirements">Requirements</h2>
-  <p>An iPhone with a Taptic Engine, running iOS 17 or later. Judder is portrait iPhone only.
-  There is no iPad layout and no Mac version.</p>
+      <div class="item" id="q-export">
+        <div class="n">04</div>
+        <div>
+          <h3>How do I get a pattern into my own project?</h3>
+          <p>Open a pattern, then <b>Export</b>. AHAP gives you a <code>.ahap</code> resource file
+          to add to your bundle and load with Core Haptics. Swift gives you a paste-ready constant
+          that rebuilds the pattern in code. Both carry a validation report showing the resolved
+          event count, the total span, and any warning about a looping audio bed restarting
+          mid-pattern.</p>
+        </div>
+      </div>
 
-  <h2 id="export">Getting a pattern out</h2>
-  <p>Export from the editor, either as an <code>.ahap</code> resource file or as Swift that
-  rebuilds the pattern as a constant. The share sheet sends it wherever you need it, so the
-  usual route into a project is straight to Files or to your Mac.</p>
+      <div class="item" id="q-feel">
+        <div class="n">05</div>
+        <div>
+          <h3>A pattern sounds right but feels wrong</h3>
+          <p>Haptic strength is arrangement rather than amplitude. A single event at intensity 1.0
+          is already the system's maximum output, so more force comes from temporal density and
+          envelope shape instead of from a larger number. Try a burst with a shorter step before
+          reaching for intensity.</p>
+        </div>
+      </div>
 
-  <h2 id="contact">Contact</h2>
-  <p>Email <a href="mailto:craigtrim@gmail.com">craigtrim@gmail.com</a>. Please include your
-  iPhone model and iOS version, and say what you expected to feel and what happened instead.
-  If it involves a specific pattern, exporting the AHAP and pasting it in makes the problem
-  much faster to reproduce.</p>
+      <div class="item" id="q-account">
+        <div class="n">06</div>
+        <div>
+          <h3>Does Judder need an account or an internet connection?</h3>
+          <p>No. It has neither. See the <a href="privacy.html">privacy policy</a>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
-  <h2 id="privacy">Privacy</h2>
-  <p>Judder does not collect anything about you.</p>
-  <p>Your patterns stay on your iPhone. There is no network code in the app, no analytics, no
-  accounts and no tracking, so nothing you build is sent anywhere. There is no server behind
-  Judder to send it to.</p>
-  <p>The app asks for no permissions and reads no personal data. No contacts, no location, no
-  photos, no identifiers.</p>
-  <p>Files you export go where you send them, through the standard iOS share sheet. What
-  happens after that is between you and whichever app you shared into.</p>
+<!-- ============ REQUIREMENTS ============ -->
+<section id="requirements">
+  <div class="wrap">
+    <h2>Requirements</h2>
+    <ul class="reqs">
+      <li><span>An <b>iPhone running iOS 17 or later</b>. Judder is portrait iPhone only. There is
+      no iPad layout and no Mac version.</span></li>
+      <li><span><b>Physical haptic hardware for playback.</b> Every other feature, including
+      authoring, the timeline and both exports, works without it.</span></li>
+    </ul>
+  </div>
+</section>
 
-  <footer>
-    <p><a href="./">judder-haptics.com</a></p>
-    <p>Judder is made by Craig Trim. Copyright 2026 Craig Trim.</p>
-  </footer>
+<!-- ============ CONTACT ============ -->
+<section id="contact">
+  <div class="wrap">
+    <h2>Getting help</h2>
+    <div class="contact">
+      <p class="eyebrow">Email</p>
+      <a class="addr" href="mailto:support@judder-haptics.com">support@judder-haptics.com</a>
+      <p>Include your iPhone model and iOS version, and say what you expected to feel and what
+      happened instead. If a specific pattern is involved, export it as AHAP and attach the file.
+      That export is the fastest way to reproduce exactly what you are feeling.</p>
+    </div>
+  </div>
+</section>
 
-</main>
+<footer>
+  <div class="wrap">
+    <div class="foot-in">
+      <span><a href="./">Judder</a></span>
+      <span>judder-haptics.com</span>
+      <span>iOS 17 and later</span>
+      <span><a href="privacy.html">Privacy</a></span>
+      <span class="sp">Copyright 2026 Craig Trim</span>
+    </div>
+  </div>
+</footer>
+
 </body>
 </html>
