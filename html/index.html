@@ -317,7 +317,18 @@ footer{padding:0 0 60px}
 /* reveal */
 .rv{opacity:0;transform:translateY(14px);transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)}
 .rv.in{opacity:1;transform:none}
-@media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}}
+/* The reveal transition was the only motion this covered. Smooth scrolling is the larger one: the
+   seven footnote markers jump across whole sections, and the browser animates the entire viewport
+   through the gap every time. */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{
+    transition-duration:.01ms!important;
+    animation-duration:.01ms!important;
+    animation-iteration-count:1!important;
+  }
+  .rv{opacity:1;transform:none;transition:none}
+}
 </style>
 </head>
 <body>
@@ -375,7 +386,7 @@ footer{padding:0 0 60px}
         <div class="readouts">
           <div class="readout"><b id="r-events">50</b><span>events</span></div>
           <div class="readout"><b id="r-hits">49</b><span>burst hits</span></div>
-          <div class="readout"><b id="r-span">1.60 s</b><span>span</span></div>
+          <div class="readout"><b id="r-span">1.60 s</b><span id="r-rate">span</span></div>
           <div class="readout"><b id="r-cap">50 / 512</b><span>budget</span></div>
         </div>
       </div>
@@ -383,7 +394,9 @@ footer{padding:0 0 60px}
     <p class="stage-cap">
       This is the real resolver, not a drawing of one. Gap is measured from the previous
       event's start, so a burst can sit on top of the bed it rides. That overlap is the
-      thing a list of numbered rows can never show you.
+      thing a list of numbered rows can never show you. Every sweep here takes the same two
+      seconds, so four of the five run below real time and the transport says by how much.
+      Every number on the axis is the real one.
     </p>
     <p class="stage-cap" style="margin-top:12px">
       Every default in the starter set is checked against published psychophysics, and
@@ -1115,7 +1128,7 @@ function bedMag(t, i, seed, gain){
 var cv = document.getElementById('cv');
 var ctx = cv.getContext('2d');
 var current = PATTERNS[PATTERNS.length - 1];
-var res = resolve(current);
+var res = resolve(current); res.view = drawnSpan(res);
 var playing = false, head = 0, last = 0;
 
 var chips = document.getElementById('chips');
@@ -1126,7 +1139,7 @@ PATTERNS.forEach(function(p){
   b.textContent = p.name;
   b.setAttribute('aria-pressed', p.id === current.id ? 'true' : 'false');
   b.addEventListener('click', function(){
-    current = p; res = resolve(p); head = 0;
+    current = p; res = resolve(p); res.view = drawnSpan(res); head = 0;
     Array.prototype.forEach.call(chips.children, function(c){ c.setAttribute('aria-pressed','false'); });
     b.setAttribute('aria-pressed','true');
     paintReadouts(); draw();
@@ -1139,13 +1152,22 @@ function paintReadouts(){
   document.getElementById('r-hits').textContent   = res.hits;
   document.getElementById('r-span').textContent   = res.span.toFixed(2) + ' s';
   document.getElementById('r-cap').textContent    = res.events.length + ' / ' + CAP_TOTAL;
+  /* The span is real. The sweep is not, for four of the five patterns, so the factor is stated
+     under the number it qualifies rather than left to the caption. */
+  var rate = rateFor(res);
+  document.getElementById('r-rate').textContent = rate < 0.995
+    ? 'span · shown ' + rate.toFixed(2) + '×'
+    : 'span';
 }
 
 function sizeCanvas(){
   var r = cv.getBoundingClientRect();
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
-  cv.width  = Math.round(r.width * dpr);
-  cv.height = Math.round(r.height * dpr);
+  var w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  /* Assigning width or height resets the backing store even when the value is unchanged, so an
+     unguarded assignment reallocated the bitmap on every animation frame. layerBuf already guards
+     the same pair this way. */
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   return r;
 }
@@ -1162,10 +1184,10 @@ function draw(){
   var hapTop = padT, hapBot = padT + hapH;
   var audTop = hapBot + laneGap;
 
-  var view = drawnSpan(res);
+  var view = res.view;
   var x = function(t){ return padL + (t / view) * innerW; };
   var cols = Math.max(2, Math.round(innerW));
-  var headX = playing ? x(head) : -1;
+  var headX = playing ? x(Math.min(head, view)) : -1;
 
   ctx.clearRect(0, 0, W, H);
 
@@ -1236,7 +1258,7 @@ function draw(){
 
   /* playhead */
   if (playing){
-    var hx = Math.round(x(head)) + 0.5;
+    var hx = Math.round(x(Math.min(head, view))) + 0.5;
     var gl = ctx.createLinearGradient(hx - 26, 0, hx, 0);
     gl.addColorStop(0, 'rgba(255,255,255,0)');
     gl.addColorStop(1, 'rgba(255,255,255,0.06)');
@@ -1249,21 +1271,48 @@ function draw(){
   }
 }
 
+/* The playhead advances in pattern-seconds. At real time a short pattern crossed the canvas almost
+   instantly and restarted: Alert Pulse resolves to a 0.24s span and its sweep finished in 0.59s,
+   which reads as a strobe rather than as playback.
+
+   Scale against res.view, NOT res.span. The x axis is drawn over drawnSpan(), which runs past span
+   to the end of the last ring-out, so scaling against span leaves the head off the right edge for
+   the difference. That gap is what the reader sees as the head vanishing before it wraps.
+
+   MIN_SWEEP is the widest drawn span in the set rather than a typed constant, so the pattern that
+   defines the floor plays at rate 1.000 by construction and adding a longer pattern cannot quietly
+   falsify this comment. Nothing is ever sped up. Since the tail is scaled by the same rate, every
+   pattern crosses in MIN_SWEEP seconds and then rests for TAIL seconds, both wall-clock.
+
+   The axis labels and the SPAN readout stay in real pattern-seconds, and the readout carries the
+   rate so a slowed sweep is stated next to the number it qualifies. */
+var TAIL = 0.35, MIN_SWEEP = 0;
+PATTERNS.forEach(function(p){ MIN_SWEEP = Math.max(MIN_SWEEP, drawnSpan(resolve(p))); });
+
+function rateFor(r){ return r.view < MIN_SWEEP ? r.view / MIN_SWEEP : 1; }
+
 function tick(ts){
   if (!playing) return;
   if (!last) last = ts;
-  head += (ts - last) / 1000;
+  var rate = rateFor(res);
+  var loop = res.view + TAIL * rate;
+  /* A backgrounded tab stops firing rAF, so the first frame back can carry tens of seconds.
+     Cap the step so the head advances rather than teleporting. */
+  head += Math.min((ts - last) / 1000, 0.05) * rate;
   last = ts;
-  if (head > res.span + 0.35) head = 0;
+  if (head > loop) head = 0;
   draw();
   requestAnimationFrame(tick);
 }
 
 var playBtn = document.getElementById('play');
-playBtn.addEventListener('click', function(){
+playBtn.addEventListener('click', function(ev){
   playing = !playing;
   playBtn.innerHTML = playing ? '&#9632;' : '&#9654;';
   playBtn.setAttribute('aria-label', playing ? 'Stop' : 'Play pattern');
+  /* isTrusted separates a real press from the .click() the observer and the visibility handler
+     use, so scrolling the stage in and out cannot undo a deliberate stop. */
+  if (ev && ev.isTrusted) resumed = playing;
   if (playing){ head = 0; last = 0; requestAnimationFrame(tick); }
   else { draw(); }
 });
@@ -1272,15 +1321,40 @@ window.addEventListener('resize', function(){ draw(); });
 paintReadouts();
 draw();
 
-/* auto play once the stage is on screen */
-if ('IntersectionObserver' in window){
-  var once = new IntersectionObserver(function(entries){
-    entries.forEach(function(en){
-      if (en.isIntersecting && !playing){ playBtn.click(); once.disconnect(); }
-    });
-  }, { threshold: 0.4 });
-  once.observe(cv);
+/* Reduced motion is read live rather than sampled once. Someone turns that setting on at the
+   moment a page makes them feel unwell, which is after load, so a boolean captured at parse time
+   is the one case that matters least. addListener is the Safari 13 spelling and this audience is
+   iPhone owners. */
+var mq = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+var calmer = !!(mq && mq.matches);
+if (mq){
+  var onCalm = function(e){ calmer = e.matches; if (calmer && playing) playBtn.click(); };
+  if (mq.addEventListener) mq.addEventListener('change', onCalm);
+  else if (mq.addListener) mq.addListener(onCalm);
 }
+
+/* Auto play once the stage is on screen, and stop again when it leaves. The sweep used to run for
+   the life of the page: the observer disconnected after the first intersection and nothing else
+   could clear `playing`, so a reader scrolled far below the hero still had a canvas repainting at
+   60fps out of view, with no control anywhere near them. `resumed` remembers a deliberate stop so
+   scrolling back does not override it. */
+var onScreen = false, resumed = false, autostarted = false;
+if ('IntersectionObserver' in window){
+  new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      onScreen = en.isIntersecting;
+      if (onScreen && !autostarted && !calmer){ autostarted = true; resumed = true; playBtn.click(); }
+      else if (onScreen && resumed && !playing){ last = 0; playBtn.click(); }
+      else if (!onScreen && playing){ playBtn.click(); }
+    });
+  }, { threshold: 0.4 }).observe(cv);
+}
+
+/* A backgrounded tab throttles rAF rather than stopping it. Park the loop instead. */
+document.addEventListener('visibilitychange', function(){
+  if (document.hidden && playing) playBtn.click();
+  else if (!document.hidden && resumed && onScreen && !playing){ last = 0; playBtn.click(); }
+});
 
 /* ---------- recipe cards with sparklines ---------- */
 var cards = document.getElementById('recipe-cards');
